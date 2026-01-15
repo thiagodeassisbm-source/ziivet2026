@@ -2,7 +2,8 @@
 /**
  * ZIIPVET - CONSOLE UNIFICADO DE ATENDIMENTO VETERINÁRIO
  * ARQUIVO: realizar_consulta.php
- * VERSÃO: 10.0.0 - PADRÃO MODERNO
+ * VERSÃO: 11.0.0 - REFATORADO (SRP)
+ * RESPONSABILIDADE: Renderizar a interface de atendimento
  */
 require_once '../auth.php';
 require_once '../config/configuracoes.php';
@@ -20,102 +21,7 @@ $historico_recente = [];
 $dados_preenchidos_vacina = null;
 
 // ========================================================================================
-// AJAX: DADOS DO ANIMAL
-// ========================================================================================
-if (isset($_GET['ajax_dados_animal']) && isset($_GET['id_paciente'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    $id = (int)$_GET['id_paciente'];
-    try {
-        $stmt = $pdo->prepare("SELECT p.*, c.nome as nome_tutor, c.cpf_cnpj, c.telefone, c.endereco, c.numero, c.bairro, c.cidade, c.estado, c.cep, c.email
-                                FROM pacientes p 
-                                INNER JOIN clientes c ON p.id_cliente = c.id 
-                                WHERE p.id = ?");
-        $stmt->execute([$id]);
-        $dados = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($dados && $dados['data_nascimento']) {
-            $nasc = new DateTime($dados['data_nascimento']);
-            $hoje = new DateTime();
-            $idade = $nasc->diff($hoje);
-            $dados['idade_animal'] = $idade->y . ' anos ' . $idade->m . ' meses';
-        } else {
-            $dados['idade_animal'] = 'não informado';
-        }
-        
-        echo json_encode($dados);
-    } catch (Exception $e) { 
-        echo json_encode(['erro' => true]); 
-    }
-    exit;
-}
-
-// ========================================================================================
-// AJAX: HISTÓRICO DE VACINAS
-// ========================================================================================
-if (isset($_GET['ajax_historico']) && isset($_GET['id_paciente'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    $id = (int)$_GET['id_paciente'];
-    
-    try {
-        $stmt = $pdo->prepare("SELECT resumo, data_atendimento 
-                                FROM atendimentos 
-                                WHERE id_paciente = ? AND tipo_atendimento = 'Vacinação' 
-                                ORDER BY data_atendimento DESC LIMIT 5");
-        $stmt->execute([$id]);
-        $historico = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        $stmt2 = $pdo->prepare("SELECT id, vacina_nome, dose_prevista, data_prevista 
-                                 FROM lembretes_vacinas 
-                                 WHERE id_paciente = ? AND status = 'Pendente' 
-                                 ORDER BY data_prevista ASC");
-        $stmt2->execute([$id]);
-        $lembretes = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-
-        echo json_encode([
-            'status' => 'success',
-            'historico' => $historico, 
-            'lembretes' => $lembretes
-        ]);
-    } catch (Exception $e) { 
-        echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]); 
-    }
-    exit;
-}
-
-// ========================================================================================
-// AJAX: HISTÓRICO DE PESO
-// ========================================================================================
-if (isset($_GET['ajax_peso']) && isset($_GET['id_paciente'])) {
-    $id_pac = (int)$_GET['id_paciente'];
-    if ($id_pac > 0) {
-        try {
-            $stmt_ajax = $pdo->prepare("SELECT data_atendimento, peso FROM atendimentos 
-                                        WHERE id_paciente = ? AND peso IS NOT NULL AND peso != '' 
-                                        ORDER BY data_atendimento DESC LIMIT 10");
-            $stmt_ajax->execute([$id_pac]);
-            $lista_h = $stmt_ajax->fetchAll(PDO::FETCH_ASSOC);
-
-            if (count($lista_h) > 0) {
-                echo '<ul style="list-style:none; padding:0; margin:0;">';
-                foreach ($lista_h as $hp) {
-                    echo '<li style="display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #f4f4f4; font-size:13px;">';
-                    echo '  <span style="color:#888; font-weight:600;">' . date('d/m/Y', strtotime($hp['data_atendimento'])) . '</span>';
-                    echo '  <span style="font-weight:700; color:#131c71;">' . htmlspecialchars($hp['peso']) . ' kg</span>';
-                    echo '</li>';
-                }
-                echo '</ul>';
-            } else {
-                echo '<div style="text-align:center; padding:20px; color:#999; font-style:italic; font-size:12px;">Sem registros de peso anteriores</div>';
-            }
-        } catch (PDOException $e) {
-            echo '<span style="color:red; font-size:12px;">Erro ao consultar banco de dados</span>';
-        }
-    }
-    exit;
-}
-
-// ========================================================================================
-// CARREGAMENTO DE DADOS
+// CARREGAMENTO DE DADOS PARA A VIEW
 // ========================================================================================
 try {
     $sql_clientes = "SELECT c.id as id_cliente, c.nome as nome_cliente, 
@@ -189,203 +95,9 @@ if ($id_paciente_selecionado) {
     <!-- CSS COMPARTILHADO -->
     <?php include 'modulos/_shared_styles.php'; ?>
     
-    <style>
-        /* SELEÇÃO DE PACIENTE */
-        .select-paciente-container {
-            background: #fff;
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 25px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        }
-        
-        .select-paciente-container .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .select-paciente-container label {
-            font-size: 16px;
-            font-weight: 600;
-            color: #495057;
-            font-family: 'Exo', sans-serif;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        
-        .select-paciente-container label i {
-            color: #131c71;
-            font-size: 18px;
-        }
-        
-        /* CARDS DE PACIENTES */
-        .card-paciente-select {
-            background: #fff;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 18px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+    <!-- CSS CUSTOM DA CONSULTA -->
+    <link rel="stylesheet" href="../css/consulta_custom.css">
 
-        .card-paciente-select:hover {
-            border-color: #131c71;
-            background: #f8f9ff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(98, 37, 153, 0.15);
-        }
-
-        .card-paciente-select.selecionado {
-            border-color: #131c71;
-            background: linear-gradient(135deg, #f0f4ff, #e8efff);
-            box-shadow: 0 4px 15px rgba(98, 37, 153, 0.2);
-        }
-
-        .card-paciente-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: #b92426;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            flex-shrink: 0;
-        }
-
-        .card-paciente-info {
-            flex: 1;
-        }
-
-        .card-paciente-nome {
-            font-size: 17px;
-            font-weight: 700;
-            color: #2c3e50;
-            margin-bottom: 5px;
-            font-family: 'Exo', sans-serif;
-        }
-
-        .card-paciente-especie {
-            font-size: 14px;
-            color: #6c757d;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-family: 'Exo', sans-serif;
-        }
-
-        .card-paciente-check {
-            width: 28px;
-            height: 28px;
-            border: 2px solid #ccc;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: 0.3s;
-        }
-
-        .card-paciente-select.selecionado .card-paciente-check {
-            background: #622599;
-            border-color: #622599;
-            color: white;
-        }
-        
-        /* CARD DO PACIENTE SELECIONADO */
-        .card-paciente {
-            background: linear-gradient(135deg, #622599, #8e44ad);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 20px rgba(98, 37, 153, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 25px;
-            color: #fff;
-        }
-        
-        .paciente-avatar {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            color: #fff;
-            flex-shrink: 0;
-        }
-        
-        .paciente-info {
-            flex: 1;
-        }
-        
-        .paciente-info h2 {
-            font-size: 28px;
-            font-weight: 700;
-            margin: 0 0 8px 0;
-            font-family: 'Exo', sans-serif;
-        }
-        
-        .subtitulo {
-            font-size: 15px;
-            opacity: 0.9;
-            margin-bottom: 15px;
-            font-family: 'Exo', sans-serif;
-        }
-        
-        .paciente-detalhes {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .detalhe-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            font-family: 'Exo', sans-serif;
-        }
-        
-        .detalhe-item i {
-            font-size: 16px;
-            opacity: 0.8;
-        }
-        
-        /* ESTADO VAZIO */
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            color: #adb5bd;
-        }
-        
-        .empty-state i {
-            font-size: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
-        }
-        
-        .empty-state h3 {
-            color: #6c757d;
-            margin-bottom: 10px;
-            font-size: 22px;
-            font-weight: 600;
-            font-family: 'Exo', sans-serif;
-        }
-        
-        .empty-state p {
-            color: #adb5bd;
-            font-size: 15px;
-            font-family: 'Exo', sans-serif;
-        }
-    </style>
 </head>
 <body>
 
@@ -556,66 +268,14 @@ if ($id_paciente_selecionado) {
     <!-- JAVASCRIPT COMPARTILHADO -->
     <?php include 'modulos/_shared_scripts.php'; ?>
     
+    <!-- API Client para Consultas -->
+    <script src="js/consulta-api-client.js"></script>
+    
     <script src="js/carregarDetalhesHistorico.js"></script>
     <script src="js/carregarVacina_ISOLADO.js"></script>
+    
+    <!-- Comportamento da Consulta -->
+    <script src="../js/consulta_behavior.js"></script>
 
-    <script>
-        $(document).ready(function() {
-            // Inicializar Select2
-            $('#select_cliente').select2({
-                placeholder: 'Digite para pesquisar o cliente...',
-                allowClear: true,
-                width: '100%'
-            });
-
-            // Ao selecionar cliente
-            $('#select_cliente').on('change', function() {
-                const selectedOption = $(this).find('option:selected');
-                const pacientesInfo = selectedOption.data('pacientes');
-                
-                if (pacientesInfo) {
-                    $('#cards_pacientes').empty();
-                    
-                    pacientesInfo.ids.forEach((id, index) => {
-                        const nome = pacientesInfo.nomes[index];
-                        const especie = pacientesInfo.especies[index] || 'Pet';
-                        
-                        const icone = especie.toLowerCase().includes('felino') || especie.toLowerCase().includes('gato')
-                            ? 'fa-cat' 
-                            : 'fa-dog';
-                        
-                        const card = $(`
-                            <div class="card-paciente-select" data-id="${id}">
-                                <div class="card-paciente-icon">
-                                    <i class="fas ${icone}"></i>
-                                </div>
-                                <div class="card-paciente-info">
-                                    <div class="card-paciente-nome">${nome}</div>
-                                    <div class="card-paciente-especie">
-                                        <i class="fas fa-paw" style="font-size: 11px;"></i>
-                                        ${especie}
-                                    </div>
-                                </div>
-                                <div class="card-paciente-check">
-                                    <i class="fas fa-check" style="display: none;"></i>
-                                </div>
-                            </div>
-                        `);
-                        
-                        card.on('click', function() {
-                            // Redirecionar para a consulta do paciente
-                            window.location.href = 'realizar_consulta.php?id_paciente=' + $(this).data('id');
-                        });
-                        
-                        $('#cards_pacientes').append(card);
-                    });
-                    
-                    $('#grupo_pacientes').slideDown(300);
-                } else {
-                    $('#grupo_pacientes').slideUp(300);
-                }
-            });
-        });
-    </script>
 </body>
 </html>

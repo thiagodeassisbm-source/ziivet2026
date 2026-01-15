@@ -1,21 +1,20 @@
 <?php
-require_once 'config/configuracoes.php';
+require_once 'vendor/autoload.php';
+require_once 'config/configuracoes.php'; // Mantendo por enquanto para constantes globais como URL_BASE
+
+use App\Core\Database;
+use App\Infrastructure\Repository\PDOUserRepository;
+use App\Application\Service\AuthService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// COMENTADO PARA PERMITIR TESTES MESMO LOGADO
-/*
-if (isset($_SESSION['usuario_id'])) {
-    header("Location: index.php");
-    exit;
-}
-*/
-
 // Verifica cookies de login
 $email_cookie = $_COOKIE['lembrar_email'] ?? '';
 $senha_cookie = isset($_COOKIE['lembrar_senha']) ? base64_decode($_COOKIE['lembrar_senha']) : '';
+
+$erro = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
@@ -25,37 +24,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!empty($email) && !empty($senha)) {
         try {
-            // Busca o usuário pelo e-mail conforme banco de dados
-            $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE email = ? LIMIT 1");
-            $stmt->execute([$email]);
-            $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Inicialização da Arquitetura
+            $db = Database::getInstance();
+            $userRepo = new PDOUserRepository($db);
+            $authService = new AuthService($userRepo);
 
-            if ($usuario && password_verify($senha, $usuario['senha'])) {
-                // Verifica status de acesso
-                if ($usuario['ativo'] == 1 && $usuario['acesso_sistema'] == 1) {
-                    $_SESSION['usuario_id'] = $usuario['id'];
-                    $_SESSION['usuario_nome'] = $usuario['nome'];
-                    $_SESSION['id_admin'] = $usuario['id_admin'];
+            // Logica de Login
+            $user = $authService->login($email, $senha);
+            $authService->createSession($user);
 
-                    // GRAVA OU LIMPA COOKIES
-                    if ($manter_conectado) {
-                        setcookie('lembrar_email', $email, time() + (86400 * 30), "/"); // 30 dias
-                        setcookie('lembrar_senha', base64_encode($senha), time() + (86400 * 30), "/"); 
-                    } else {
-                        // Limpa se o usuário desmarcou
-                        setcookie('lembrar_email', '', time() - 3600, "/");
-                        setcookie('lembrar_senha', '', time() - 3600, "/");
-                    }
-                    
-                    header("Location: dashboard.php");
-                    exit;
-                } else {
-                    $erro = "Seu acesso está desativado.";
-                }
+            // Gerenciamento de Cookies (View/Controller Logic)
+            if ($manter_conectado) {
+                setcookie('lembrar_email', $email, time() + (86400 * 30), "/"); // 30 dias
+                setcookie('lembrar_senha', base64_encode($senha), time() + (86400 * 30), "/"); 
             } else {
-                $erro = "E-mail ou senha incorretos.";
+                setcookie('lembrar_email', '', time() - 3600, "/");
+                setcookie('lembrar_senha', '', time() - 3600, "/");
             }
-        } catch (PDOException $e) {
+            
+            header("Location: dashboard.php");
+            exit;
+
+        } catch (Exception $e) {
             $erro = "Erro: " . $e->getMessage();
         }
     } else {

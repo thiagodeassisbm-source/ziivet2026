@@ -2,64 +2,64 @@
 /**
  * ZIIPVET - LISTAGEM DE CLIENTES
  * ARQUIVO: listar_clientes.php
- * VERSÃO: 3.0.0 - PADRÃO MODERNO
+ * VERSÃO: 4.0.0 - ARQUITETURA EM CAMADAS (Service Layer)
  */
+require_once __DIR__ . '/vendor/autoload.php';
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
+
+use App\Core\Database;
+use App\Utils\Response;
+use App\Infrastructure\Repository\ClienteRepository;
+use App\Application\Service\ClienteService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 // ==========================================================
-// LÓGICA DE EXCLUSÃO (AJAX)
+// INICIALIZAÇÃO DA ARQUITETURA EM CAMADAS
+// ==========================================================
+$db = Database::getInstance();
+$clienteRepository = new ClienteRepository($db);
+$clienteService = new ClienteService($clienteRepository);
+
+// ==========================================================
+// ENDPOINT: EXCLUSÃO DE CLIENTE (AJAX)
 // ==========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'excluir') {
-    header('Content-Type: application/json');
     $id_cliente = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     
-    try {
-        $stmt = $pdo->prepare("DELETE FROM clientes WHERE id = ?");
-        $stmt->execute(array($id_cliente));
-        echo json_encode(array('status' => 'success', 'message' => 'Cliente excluído com sucesso!'));
-    } catch (PDOException $e) {
-        echo json_encode(array('status' => 'error', 'message' => 'Erro: existem animais ou histórico clínico vinculados.'));
-    }
-    exit;
+    $resultado = $clienteService->excluir($id_cliente);
+    
+    Response::json([
+        'status' => $resultado['success'] ? 'success' : 'error',
+        'message' => $resultado['message']
+    ], $resultado['success'] ? 200 : 400);
 }
 
 // ==========================================================
-// CONFIGURAÇÃO DA PÁGINA
+// CARREGAMENTO DE DADOS PARA A VIEW
 // ==========================================================
 $titulo_pagina = "Listagem de Clientes";
-$filtro_busca = isset($_GET['busca']) ? $_GET['busca'] : '';
-
-$pagina_atual = (isset($_GET['pagina']) && is_numeric($_GET['pagina'])) ? (int)$_GET['pagina'] : 1;
+$filtro_busca = $_GET['busca'] ?? '';
+$pagina_atual = isset($_GET['pagina']) && is_numeric($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
 $itens_per_page = 20;
-$offset = ($pagina_atual - 1) * $itens_per_page;
+
 
 try {
-    $sqlCount = "SELECT COUNT(*) as total FROM clientes WHERE nome LIKE :busca OR cpf_cnpj LIKE :busca OR email LIKE :busca";
-    $stmtCount = $pdo->prepare($sqlCount);
-    $stmtCount->execute(array(':busca' => "%$filtro_busca%"));
-    $resCount = $stmtCount->fetch(PDO::FETCH_ASSOC);
-    $total_registros = $resCount['total'];
-    $total_paginas = ceil($total_registros / $itens_per_page);
-
-    $sql = "SELECT c.id, c.nome, c.cpf_cnpj, c.telefone, c.email,
-            (SELECT GROUP_CONCAT(DISTINCT CONCAT(id, ':', nome_paciente) ORDER BY nome_paciente ASC SEPARATOR '|') FROM pacientes WHERE id_cliente = c.id) as lista_animais
-            FROM clientes c
-            WHERE (c.nome LIKE :busca OR c.cpf_cnpj LIKE :busca OR c.email LIKE :busca)
-            ORDER BY c.nome ASC 
-            LIMIT " . (int)$offset . ", " . (int)$itens_per_page;
+    // Service orquestra toda a lógica de negócio
+    $resultado = $clienteService->listarPaginado($filtro_busca, $pagina_atual, $itens_per_page);
     
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':busca', "%$filtro_busca%");
-    $stmt->execute();
-    $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $clientes = $resultado['clientes'];
+    $total_registros = $resultado['total_registros'];
+    $total_paginas = $resultado['total_paginas'];
+    $pagina_atual = $resultado['pagina_atual'];
 
 } catch (PDOException $e) {
-    die("Erro ao buscar clientes: " . $e->getMessage());
+    die("Erro SQL ao buscar clientes: " . $e->getMessage() . "<br><br>Trace: " . $e->getTraceAsString());
+} catch (Exception $e) {
+    die("Erro ao buscar clientes: " . $e->getMessage() . "<br><br>Trace: " . $e->getTraceAsString());
 }
 
 function gerar_link($pg) {

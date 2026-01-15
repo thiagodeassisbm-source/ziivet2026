@@ -15,11 +15,21 @@ if (!isset($_SESSION['usuario_id']) || !isset($_SESSION['id_admin'])) {
     exit;
 }
 
+use App\Core\Database;
+
+require_once __DIR__ . '/vendor/autoload.php';
+
 /**
  * FUNÇÃO: temPermissao
  */
 function temPermissao($modulo, $acao) {
-    global $pdo;
+    // Refatorado para usar Singleton Database (Clean Arch)
+    try {
+        $pdo = Database::getInstance()->getConnection();
+    } catch (Exception $e) {
+        return false;
+    }
+
     if (!$pdo) return false;
 
     $id_usuario = $_SESSION['usuario_id'];
