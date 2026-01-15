@@ -1,4 +1,5 @@
 <?php
+ob_start();
 /**
  * =========================================================================================
  * ZIIPVET - LISTAGEM DE CONTAS FINANCEIRAS
@@ -8,6 +9,8 @@
  */
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
+
+use App\Utils\Csrf;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -447,6 +450,7 @@ try {
             const fd = new FormData();
             fd.append('acao', 'excluir_conta');
             fd.append('id', id);
+            fd.append('csrf_token', '<?= Csrf::getToken() ?>');
 
             try {
                 const res = await fetch('listar_contas_financeiras.php', { 

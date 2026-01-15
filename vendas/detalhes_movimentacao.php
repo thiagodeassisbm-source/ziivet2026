@@ -215,26 +215,66 @@ try {
     $stmtF->execute([$id_admin]);
     $formasDoSistema = $stmtF->fetchAll(PDO::FETCH_ASSOC);
 
+    // Modificado para capturar totais Brutos e Líquidos, agrupando cartões de crédito/débito
     $stmtResumo = $pdo->prepare("
         SELECT 
-            UPPER(TRIM(forma_pagamento)) as forma_nome,
-            SUM(valor) as total_vendas
-        FROM lancamentos
-        WHERE id_caixa_referencia = ?
-        AND tipo = 'ENTRADA'
-        AND status = 'PAGO'
-        AND (categoria = 'VENDAS' OR categoria IS NULL)
-        GROUP BY forma_nome
+            CASE 
+                WHEN UPPER(l.forma_pagamento) LIKE '%CRÉDITO%' OR UPPER(l.forma_pagamento) LIKE '%CREDITO%' THEN 'CARTÃO DE CRÉDITO'
+                WHEN UPPER(l.forma_pagamento) LIKE '%DÉBITO%' OR UPPER(l.forma_pagamento) LIKE '%DEBITO%' THEN 'CARTÃO DE DÉBITO'
+                ELSE COALESCE(UPPER(TRIM(l.forma_pagamento)), 'OUTROS')
+            END as forma_agrupada,
+            l.forma_pagamento as forma_original,
+            l.valor as valor_liquido,
+            COALESCE(v.valor_total, l.valor) as valor_bruto,
+            l.id_venda
+        FROM lancamentos l
+        LEFT JOIN vendas v ON l.id_venda = v.id
+        WHERE l.id_caixa_referencia = ?
+        AND l.tipo = 'ENTRADA'
+        AND l.status = 'PAGO'
+        ORDER BY forma_agrupada, l.id
     ");
     $stmtResumo->execute([$id_caixa]);
-    $resumoData = $stmtResumo->fetchAll(PDO::FETCH_KEY_PAIR);
+    $resumoRaw = $stmtResumo->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Processar para agrupar [FormaAgrupada => ['liquido'=>X, 'bruto'=>Y, 'detalhes'=>[...]]]
+    $resumoData = [];
+    foreach ($resumoRaw as $r) {
+        $key = $r['forma_agrupada'];
+        if (!isset($resumoData[$key])) {
+            $resumoData[$key] = [
+                'liquido' => 0,
+                'bruto' => 0,
+                'detalhes' => []
+            ];
+        }
+        $resumoData[$key]['liquido'] += $r['valor_liquido'];
+        $resumoData[$key]['bruto'] += $r['valor_bruto'];
+        
+        // Armazenar detalhes individuais somente se houver taxa (bruto > liquido)
+        if ($r['valor_bruto'] > $r['valor_liquido'] + 0.01) {
+            $resumoData[$key]['detalhes'][] = [
+                'forma' => $r['forma_original'],
+                'bruto' => $r['valor_bruto'],
+                'liquido' => $r['valor_liquido'],
+                'id_venda' => $r['id_venda']
+            ];
+        }
+    }
+    
+    // Garantir que DINHEIRO esteja presente para o Suprimento
+    if (!isset($resumoData['DINHEIRO'])) {
+        $resumoData['DINHEIRO'] = ['liquido' => 0, 'bruto' => 0, 'detalhes' => []];
+    }
 
     $stmtLista = $pdo->prepare("
-        SELECT * FROM lancamentos
-        WHERE id_caixa_referencia = ?
-        AND tipo = 'ENTRADA'
-        AND status = 'PAGO'
-        ORDER BY data_cadastro DESC
+        SELECT l.*, v.valor_total as venda_valor_bruto 
+        FROM lancamentos l
+        LEFT JOIN vendas v ON l.id_venda = v.id
+        WHERE l.id_caixa_referencia = ?
+        AND l.tipo = 'ENTRADA'
+        AND l.status = 'PAGO'
+        ORDER BY l.data_cadastro DESC
     ");
     $stmtLista->execute([$id_caixa]);
     $listaRecebimentos = $stmtLista->fetchAll(PDO::FETCH_ASSOC);
@@ -452,7 +492,8 @@ $hora_atual = date('H:i');
                         <thead>
                             <tr>
                                 <th>Forma de recebimento</th>
-                                <th>Vendas</th>
+                                <th>Vendas (Bruto)</th>
+                                <th>Vendas (Líquido)</th>
                                 <th>Suprimentos</th>
                                 <th style="text-align: right;">Resultado</th>
                             </tr>
@@ -462,32 +503,71 @@ $hora_atual = date('H:i');
                             $totalVendas = 0; 
                             $totalSuprimento = 0;
                             
-                            foreach($formasDoSistema as $f):
-                                $nomeFormaOriginal = $f['nome_forma'];
-                                $nomeBusca = strtoupper(trim($nomeFormaOriginal));
+                            // Ordenar keys para estética
+                            ksort($resumoData);
+
+                            foreach($resumoData as $formaNome => $dados):
+                                // Formata o nome para exibição (ex: DINHEIRO -> Dinheiro)
+                                // Usa mb_convert_case para lidar corretamente com acentos (UTF-8)
+                                $nomeExibicao = mb_convert_case($formaNome, MB_CASE_TITLE, "UTF-8");
+                                // Tenta buscar a grafia original do sistema
+                                foreach($formasDoSistema as $fs) {
+                                    if (strtoupper(trim($fs['nome_forma'])) === $formaNome) {
+                                        $nomeExibicao = $fs['nome_forma'];
+                                        break;
+                                    }
+                                }
                                 
-                                $vendaVal = $resumoData[$nomeBusca] ?? 0;
-                                $suprimentoVal = ($nomeBusca == 'DINHEIRO') ? (float)$caixa['valor_inicial'] : 0;
-                                $resultado = $vendaVal + $suprimentoVal;
+                                $vendaLiquido = $dados['liquido'];
+                                $vendaBruto = $dados['bruto'];
+                                $detalhes = $dados['detalhes'] ?? [];
                                 
-                                if($resultado > 0 || $nomeBusca == 'DINHEIRO'):
-                                    $totalVendas += $vendaVal;
-                                    $totalSuprimento += $suprimentoVal;
+                                $suprimentoVal = ($formaNome == 'DINHEIRO') ? (float)$caixa['valor_inicial'] : 0;
+                                
+                                // O Resultado é sempre o LÍQUIDO que entrou no caixa + Suprimentos
+                                $resultado = $vendaLiquido + $suprimentoVal;
+                                
+                                // Pular se tudo zerado (exceto se for Dinheiro)
+                                if ($resultado <= 0.001 && $formaNome != 'DINHEIRO') continue;
+
+                                $totalVendas += $vendaLiquido;
+                                $totalSuprimento += $suprimentoVal;
+                                
+                                // Variação entre Bruto e Líquido?
+                                $temTaxa = ($vendaBruto > $vendaLiquido + 0.01);
                             ?>
                             <tr>
-                                <td><?= htmlspecialchars($nomeFormaOriginal) ?></td>
-                                <td><?= number_format($vendaVal, 2, ',', '.') ?></td>
-                                <td><?= $suprimentoVal > 0 ? number_format($suprimentoVal, 2, ',', '.') : '-' ?></td>
-                                <td style="text-align: right;"><strong><?= number_format($resultado, 2, ',', '.') ?></strong></td>
+                                <td><?= htmlspecialchars($nomeExibicao) ?></td>
+                                <td>
+                                    <?php if ($vendaBruto > 0): ?>
+                                        R$ <?= number_format($vendaBruto, 2, ',', '.') ?>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($vendaLiquido > 0): ?>
+                                        <span style="<?= $temTaxa ? 'color:#dc3545; font-weight:600;' : '' ?>">
+                                            R$ <?= number_format($vendaLiquido, 2, ',', '.') ?>
+                                        </span>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= $suprimentoVal > 0 ? 'R$ ' . number_format($suprimentoVal, 2, ',', '.') : '-' ?></td>
+                                <td style="text-align: right; font-weight: 700; color: #1e40af;">
+                                    R$ <?= number_format($resultado, 2, ',', '.') ?>
+                                </td>
                             </tr>
-                            <?php endif; endforeach; ?>
+                            <?php endforeach; ?>
                         </tbody>
                         <tfoot>
                             <tr class="row-total">
-                                <td>Total</td>
-                                <td><?= number_format($totalVendas, 2, ',', '.') ?></td>
-                                <td><?= number_format($totalSuprimento, 2, ',', '.') ?></td>
-                                <td style="text-align: right;"><strong><?= number_format($totalVendas + $totalSuprimento, 2, ',', '.') ?></strong></td>
+                                <td>TOTAL GERAL</td>
+                                <td>-</td>
+                                <td style="font-weight:700;">R$ <?= number_format($totalVendas, 2, ',', '.') ?></td>
+                                <td>R$ <?= number_format($totalSuprimento, 2, ',', '.') ?></td>
+                                <td style="text-align: right; font-weight:700;">R$ <?= number_format($totalVendas + $totalSuprimento, 2, ',', '.') ?></td>
                             </tr>
                         </tfoot>
                     </table>

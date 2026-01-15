@@ -226,12 +226,13 @@ class VendaService
         $valorLiquido = $valorBruto;
         $valorTaxaDescontada = 0;
         
-        $taxaAplicada = $dados['taxa_aplicada'] ?? '0%';
+        $taxaAplicada = $dados['taxa_aplicada'] ?? '0';
         $percentualTaxa = 0;
         
-        if (preg_match('/(\d+(?:\.\d+)?)%/', $taxaAplicada, $matches)) {
-            $percentualTaxa = floatval($matches[1]);
-        }
+        // Limpar string da taxa para extrair apenas o número
+        $taxaLimpa = str_replace(['%', ' '], '', $taxaAplicada);
+        $taxaLimpa = str_replace(',', '.', $taxaLimpa);
+        $percentualTaxa = floatval($taxaLimpa);
         
         if ($percentualTaxa > 0) {
             $valorTaxaDescontada = ($valorBruto * $percentualTaxa) / 100;
@@ -257,30 +258,38 @@ class VendaService
         $idContaFinanceira = $this->determinarContaDestino($dados);
         $idCaixa = $dados['caixa_ativo'] ?? null;
 
-        $sqlLancamento = "INSERT INTO lancamentos (
-            id_admin, tipo, categoria, descricao, documento, fornecedor_cliente, 
-            id_venda, data_vencimento, data_pagamento, valor, parcela_atual, 
-            total_parcelas, forma_pagamento, id_conta_financeira, status, 
-            id_caixa_referencia, data_cadastro
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, NOW())";
+        // CORREÇÃO: Inserir na tabela CONTAS (pois lancamentos é uma VIEW) - Mapeamento para V4
+        $idFormaPgto = $dados['id_forma_pagamento'] ?? null;
+        $idCliente = $dados['id_cliente'] ?? null;
+        
+        // Verificar se devemos adicionar id_venda (se a coluna existir na tabela contas)
+        // Como não podemos garantir a estrutura aqui, vamos usar os campos padrão da tabela contas
+        
+        $sqlLancamento = "INSERT INTO contas (
+            id_admin, natureza, categoria, descricao, documento, 
+            vencimento, data_pagamento, valor_total, valor_parcela, 
+            status_baixa, id_caixa_referencia, data_cadastro,
+            id_forma_pgto, entidade_tipo, id_entidade, id_venda,
+            forma_pagamento_detalhe
+        ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)";
         
         $stmt = $conn->prepare($sqlLancamento);
         $stmt->execute([
             $dados['id_admin'],
-            'ENTRADA',
-            'VENDAS',
-            $descricaoLancamento,
-            (string)$idVenda,
-            $nomeCliente,
-            $idVenda,
-            $dados['data'] ?? date('Y-m-d'),
-            $valorLiquido,
-            1,
-            $qtdParcelas,
-            $nomeFormaPagamento,
-            $idContaFinanceira,
-            'PAGO',
-            $idCaixa
+            'Receita',              // natureza (ENTRADA -> Receita)
+            'VENDAS',               // categoria
+            $descricaoLancamento,   // descricao
+            (string)$idVenda,       // documento
+            $dados['data'] ?? date('Y-m-d'), // vencimento
+            $valorLiquido,          // valor_total
+            $valorLiquido,          // valor_parcela (venda a vista ou total)
+            'PAGO',                 // status_baixa
+            $idCaixa,               // id_caixa_referencia
+            $idFormaPgto,           // id_forma_pgto
+            'cliente',              // entidade_tipo
+            $idCliente,             // id_entidade
+            $idVenda,               // id_venda,
+            $nomeFormaPagamento     // forma_pagamento_detalhe
         ]);
     }
 

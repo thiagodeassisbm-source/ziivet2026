@@ -581,9 +581,7 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
-                                    <button class="btn-icon-action" style="color: #dc3545; border: 1px solid #dc3545; margin-left: 5px;" title="Excluir Caixa" onclick="excluirCaixa(<?= $mov['id'] ?>)">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
+
 
                                     <?php if($mov['status'] == 'ABERTO'): ?>
                                         <span class="status-aberto">
