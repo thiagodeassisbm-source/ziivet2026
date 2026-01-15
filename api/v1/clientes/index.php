@@ -23,16 +23,23 @@ use App\Core\Database;
 use App\Utils\Response;
 use App\Infrastructure\Repository\ClienteRepository;
 use App\Application\Service\ClienteService;
+use App\Application\Auth\AuthMiddleware;
+
+// ============================================================
+// PROTEÇÃO: VERIFICAR AUTENTICAÇÃO
+// ============================================================
+AuthMiddleware::verificar();
 
 // Inicializar sessão se necessário (para autenticação futura)
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// TODO: Adicionar autenticação JWT aqui
-// if (!verificarToken()) {
-//     Response::json(['error' => 'Não autorizado'], 401);
-// }
+// TODO: Migrar para autenticação JWT
+// Atualmente usa sessão PHP. Quando implementar JWT:
+// 1. Remover verificação de sessão
+// 2. AuthMiddleware::verificar() já validará o token Bearer
+// 3. Usar AuthMiddleware::getUsuarioId() e getAdminId() para obter dados do token
 
 // Inicializar dependências
 try {
