@@ -16,8 +16,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
-// PROCESSAMENTO DE FECHAMENTO
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa') {
+// PROCESSAMENTO DE ENCERRAMENTO (ADMIN)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
     try {
         $pdo->beginTransaction();
 
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $id_conta_usuario = $dadosUser['id_conta_caixa']; 
 
         $sql = "UPDATE caixas SET 
-                status = 'FECHADO', 
+                status = 'ENCERRADO', 
                 data_fechamento = :data, 
                 valor_fechamento = :valor, 
                 id_conta_fechamento = :conta 
@@ -52,14 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         ]);
 
         if ($id_conta_destino && $valor_fechamento > 0) {
-            $desc_lancamento = "FECHAMENTO DE CAIXA #" . $id_caixa . " (" . $dadosUser['nome'] . ")";
+            $desc_lancamento = "ENCERRAMENTO DE CAIXA #" . $id_caixa . " (" . $dadosUser['nome'] . ")";
             
             $sqlSai = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia)
-                       VALUES (?, 'Despesa', '1', ?, 'usuario', ?, ?, 'FECHAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
+                       VALUES (?, 'Despesa', '1', ?, 'usuario', ?, ?, 'ENCERRAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
             $pdo->prepare($sqlSai)->execute([$id_admin, $id_conta_usuario, $id_usuario_caixa, "SAÍDA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa]);
 
             $sqlEnt = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia)
-                       VALUES (?, 'Receita', '1', ?, 'usuario', ?, ?, 'FECHAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
+                       VALUES (?, 'Receita', '1', ?, 'usuario', ?, ?, 'ENCERRAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
             $pdo->prepare($sqlEnt)->execute([$id_admin, $id_conta_destino, $id_usuario_caixa, "ENTRADA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa]);
         }
 
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
     } catch (Exception $e) {
         $pdo->rollBack();
-        die("Erro ao fechar caixa: " . $e->getMessage());
+        die("Erro ao encerrar caixa: " . $e->getMessage());
     }
 }
 
@@ -528,9 +528,16 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <span class="status-aberto">
                                             <i class="fas fa-check-circle"></i> ABERTO
                                         </span>
+                                    <?php elseif($mov['status'] == 'FECHADO'): ?>
+                                        <span class="status-fechado" style="background:var(--laranja); color:#fff; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-block; margin-right:5px;">
+                                            <i class="fas fa-clock"></i> FECHADO
+                                        </span>
+                                        <button class="btn-icon-action" title="Encerrar Caixa (Admin)" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
+                                            <i class="fas fa-lock"></i>
+                                        </button>
                                     <?php else: ?>
-                                        <span class="status-fechado">
-                                            <i class="fas fa-check-circle"></i> FECHADO
+                                        <span class="status-fechado" style="background:#d4edda; color:var(--verde);">
+                                            <i class="fas fa-check-double"></i> ENCERRADO
                                         </span>
                                     <?php endif; ?>
                                 </td>
@@ -547,11 +554,11 @@ $titulo_pagina = "Movimentação de Caixas";
     <div id="modalFechamento" class="modal-overlay">
         <div class="modal-dialog">
             <form method="POST">
-                <input type="hidden" name="acao" value="fechar_caixa">
+                <input type="hidden" name="acao" value="encerrar_caixa">
                 <input type="hidden" name="id_caixa_fechar" id="modal_id_caixa">
                 
                 <div class="modal-header">
-                    <i class="fas fa-lock"></i> Fechar Caixa
+                    <i class="fas fa-lock"></i> Encerrar Caixa (Admin)
                 </div>
                 
                 <div class="modal-body">
