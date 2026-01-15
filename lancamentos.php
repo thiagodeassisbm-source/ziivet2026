@@ -796,10 +796,18 @@ function extrairInfoTaxa($descricao) {
                                                 <?php if (!empty($l['id_caixa_referencia'])): ?>
                                                     <span class="small-detail"><i class="fas fa-cash-register"></i> Caixa <?= $l['id_caixa_referencia'] ?></span>
                                                 <?php endif; ?>
+                                            <?php elseif (strpos($l['documento'], 'FECHAMENTO') !== false || strpos($l['documento'], 'ENCERRAMENTO') !== false): ?>
+                                                <strong style="color: #6610f2;"><i class="fas fa-file-invoice-dollar"></i> <?= htmlspecialchars($l['descricao']) ?></strong>
+                                                <?php if (!empty($l['id_caixa_referencia'])): ?>
+                                                    <span class="small-detail"><i class="fas fa-cash-register"></i> Ref. Caixa #<?= $l['id_caixa_referencia'] ?></span>
+                                                <?php endif; ?>
                                             <?php else: ?>
                                                 <strong><?= htmlspecialchars($l['descricao']) ?></strong>
                                                 <?php if (!empty($l['fornecedor_cliente'])): ?>
                                                     <span class="small-detail"><?= htmlspecialchars($l['fornecedor_cliente']) ?></span>
+                                                <?php endif; ?>
+                                                <?php if (!empty($l['id_caixa_referencia'])): ?>
+                                                    <span class="small-detail"><i class="fas fa-cash-register"></i> Caixa <?= $l['id_caixa_referencia'] ?></span>
                                                 <?php endif; ?>
                                             <?php endif; ?>
                                         </td>
