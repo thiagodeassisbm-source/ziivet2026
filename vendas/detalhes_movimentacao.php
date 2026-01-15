@@ -10,6 +10,7 @@
  */
 
 $base_path = dirname(__DIR__) . '/'; 
+$path_prefix = '../';
 
 require_once $base_path . 'auth.php';
 require_once $base_path . 'config/configuracoes.php';
