@@ -528,9 +528,6 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <span class="status-aberto">
                                             <i class="fas fa-check-circle"></i> ABERTO
                                         </span>
-                                        <button class="btn-icon-action" title="Fechar Caixa" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
-                                            <i class="fas fa-lock"></i>
-                                        </button>
                                     <?php else: ?>
                                         <span class="status-fechado">
                                             <i class="fas fa-check-circle"></i> FECHADO
