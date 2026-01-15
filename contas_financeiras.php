@@ -1,4 +1,12 @@
 <?php
+/**
+ * =========================================================================================
+ * ZIIPVET - CADASTRO DE CONTAS FINANCEIRAS
+ * ARQUIVO: contas_financeiras.php
+ * VERSÃO: 2.0.0 - REFATORADO COM SERVICE LAYER
+ * =========================================================================================
+ */
+
 // ATIVAÇÃO DE ERROS
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -6,6 +14,11 @@ error_reporting(E_ALL);
 
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
+require_once __DIR__ . '/vendor/autoload.php';
+
+use App\Core\Database;
+use App\Infrastructure\Repository\ContaFinanceiraRepository;
+use App\Application\Service\ContaFinanceiraService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -15,42 +28,42 @@ $id_admin = $_SESSION['id_admin'] ?? 1;
 $id_edit = $_GET['id'] ?? null;
 $dados = [];
 
+// Inicializar Service Layer
+try {
+    $db = Database::getInstance();
+    $contaRepository = new ContaFinanceiraRepository($db);
+    $contaService = new ContaFinanceiraService($contaRepository);
+} catch (Exception $e) {
+    die("Erro ao inicializar sistema: " . $e->getMessage());
+}
+
 // ==========================================================
-// PROCESSAMENTO POST (SALVAR)
+// PROCESSAMENTO POST (SALVAR) - USANDO SERVICE LAYER
 // ==========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'salvar') {
     try {
-        $nome = trim($_POST['nome']);
-        $tipo = $_POST['tipo'];
-        $status = $_POST['status'];
-        $permitir = isset($_POST['permitir_lancamentos']) ? 1 : 0;
-        
-        // Saldo Inicial
-        $data_saldo = !empty($_POST['data_saldo']) ? $_POST['data_saldo'] : null;
-        $valor_saldo = !empty($_POST['valor_saldo']) ? str_replace(['R$', '.', ','], ['', '', '.'], $_POST['valor_saldo']) : 0.00;
-        $situacao = $_POST['situacao_saldo'] ?? 'Positivo';
+        // Preparar dados para o Service
+        $dadosConta = [
+            'id' => $_POST['id_edit'] ?? null,
+            'nome_conta' => trim($_POST['nome']),
+            'tipo_conta' => $_POST['tipo'],
+            'status' => $_POST['status'],
+            'permitir_lancamentos' => isset($_POST['permitir_lancamentos']) ? 1 : 0,
+            'saldo_inicial' => $_POST['valor_saldo'] ?? 0.00,
+            'data_saldo' => !empty($_POST['data_saldo']) ? $_POST['data_saldo'] : null,
+            'situacao_saldo' => $_POST['situacao_saldo'] ?? 'Positivo'
+        ];
 
-        if (empty($nome)) throw new Exception("O nome da conta é obrigatório.");
+        // Chamar Service (ele detecta automaticamente se é criação ou atualização)
+        $resultado = $contaService->salvar($dadosConta, $id_admin);
 
-        if (!empty($_POST['id_edit'])) {
-            // EDITAR
-            $stmt = $pdo->prepare("UPDATE contas_financeiras SET 
-                                   nome_conta=?, tipo_conta=?, status=?, permitir_lancamentos=?, 
-                                   saldo_inicial=?, data_saldo=?, situacao_saldo=? 
-                                   WHERE id=? AND id_admin=?");
-            $stmt->execute([$nome, $tipo, $status, $permitir, $valor_saldo, $data_saldo, $situacao, $_POST['id_edit'], $id_admin]);
-            $msg = "Conta atualizada com sucesso!";
+        if ($resultado['success']) {
+            echo "<script>alert('{$resultado['message']}'); window.location.href='listar_contas_financeiras.php';</script>";
+            exit;
         } else {
-            // NOVO
-            $stmt = $pdo->prepare("INSERT INTO contas_financeiras 
-                                   (id_admin, nome_conta, tipo_conta, status, permitir_lancamentos, saldo_inicial, data_saldo, situacao_saldo) 
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_admin, $nome, $tipo, $status, $permitir, $valor_saldo, $data_saldo, $situacao]);
-            $msg = "Conta cadastrada com sucesso!";
+            $erro = $resultado['message'];
+            echo "<script>alert('Erro: $erro');</script>";
         }
-
-        echo "<script>alert('$msg'); window.location.href='listar_contas_financeiras.php';</script>";
-        exit;
 
     } catch (Exception $e) {
         $erro = $e->getMessage();
@@ -58,11 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     }
 }
 
-// CARREGAR DADOS PARA EDIÇÃO
+// ==========================================================
+// CARREGAR DADOS PARA EDIÇÃO - USANDO SERVICE LAYER
+// ==========================================================
 if ($id_edit) {
-    $stmt = $pdo->prepare("SELECT * FROM contas_financeiras WHERE id = ? AND id_admin = ?");
-    $stmt->execute([$id_edit, $id_admin]);
-    $dados = $stmt->fetch(PDO::FETCH_ASSOC);
+    $dados = $contaService->buscarPorId((int)$id_edit, $id_admin);
+    if (!$dados) {
+        echo "<script>alert('Conta não encontrada!'); window.location.href='listar_contas_financeiras.php';</script>";
+        exit;
+    }
 }
 
 $titulo_pagina = $id_edit ? "Editar Conta" : "Contas e cartões";

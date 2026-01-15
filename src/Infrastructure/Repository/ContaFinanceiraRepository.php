@@ -151,6 +151,26 @@ class ContaFinanceiraRepository
     }
 
     /**
+     * Exclui uma conta financeira
+     *
+     * @param int $id ID da conta
+     * @param int $idAdmin ID do administrador
+     * @return bool
+     * @throws PDOException
+     */
+    public function excluir(int $id, int $idAdmin): bool
+    {
+        $conn = $this->db->getConnection();
+        
+        $sql = "DELETE FROM contas_financeiras 
+                WHERE id = ? AND id_admin = ?";
+        
+        $stmt = $conn->prepare($sql);
+        
+        return $stmt->execute([$id, $idAdmin]);
+    }
+
+    /**
      * Busca totais e estatísticas das contas financeiras
      *
      * @param int $idAdmin ID do administrador

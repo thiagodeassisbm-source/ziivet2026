@@ -3,7 +3,7 @@
  * =========================================================================================
  * ZIIPVET - PONTO DE VENDA (PDV) - VERSÃO MODULAR
  * ARQUIVO: vendas.php
- * VERSÃO: 5.0.0 - ESTRUTURA MODULAR COM BANDEIRAS E PARCELAS
+ * VERSÃO: 6.0.0 - REFATORADO COM SERVICE LAYER
  * =========================================================================================
  */
 ini_set('display_errors', 1);
@@ -11,6 +11,11 @@ error_reporting(E_ALL);
 
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
+require_once __DIR__ . '/vendor/autoload.php';
+
+use App\Core\Database;
+use App\Infrastructure\Repository\VendaRepository;
+use App\Application\Service\VendaService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -20,6 +25,18 @@ if (session_status() === PHP_SESSION_NONE) {
 define('VENDAS_MODULE_LOADED', true);
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
+$usuario_logado = $_SESSION['nome'] ?? 'Sistema';
+
+// ==========================================================
+// INICIALIZAR SERVICE LAYER
+// ==========================================================
+try {
+    $db = Database::getInstance();
+    $vendaRepository = new VendaRepository($db);
+    $vendaService = new VendaService($vendaRepository, $db);
+} catch (Exception $e) {
+    die("Erro ao inicializar sistema: " . $e->getMessage());
+}
 $usuario_logado = $_SESSION['nome'] ?? 'Sistema';
 
 // ==========================================================
@@ -60,219 +77,42 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'buscar_animais') {
     exit;
 }
 
-// SALVAR VENDA / ORÇAMENTO
+// ==========================================================
+// SALVAR VENDA / ORÇAMENTO - USANDO SERVICE LAYER
+// ==========================================================
 if (isset($_POST['acao']) && $_POST['acao'] === 'salvar_venda') {
     ob_clean();
     header('Content-Type: application/json');
 
     try {
-        $pdo->beginTransaction();
+        // Decodificar dados da venda
         $dados = json_decode($_POST['dados_venda'], true);
         
-        if (empty($dados['itens'])) throw new Exception("Nenhum item adicionado.");
-
-        $is_orcamento = ($dados['tipo'] === 'Orçamento');
-        $status_pgto = ($dados['acao_btn'] === 'receber' && !$is_orcamento) ? 'PAGO' : 'PENDENTE';
-        $tipo_venda_salvar = $is_orcamento ? null : $dados['tipo_venda'];
-        $data_validade = $is_orcamento ? $dados['data_validade'] : null;
-
-        // 1. Inserir Venda
-        $sqlVenda = "INSERT INTO vendas (id_admin, usuario_vendedor, id_cliente, id_paciente, data_venda, data_validade, tipo_movimento, tipo_venda, valor_total, observacoes, status_pagamento) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        // Adicionar informações do contexto
+        $dados['id_admin'] = $id_admin;
+        $dados['usuario_vendedor'] = $usuario_logado;
         
-        $stmtV = $pdo->prepare($sqlVenda);
-        $stmtV->execute([
-            $id_admin,
-            $usuario_logado,
-            !empty($dados['id_cliente']) ? $dados['id_cliente'] : null,
-            !empty($dados['id_paciente']) ? $dados['id_paciente'] : null,
-            $dados['data'],
-            $data_validade,
-            $dados['tipo'], 
-            $tipo_venda_salvar,
-            $dados['total_geral'],
-            $dados['obs'],
-            $status_pgto
-        ]);
-        $id_venda = $pdo->lastInsertId();
-
-        // 2. Itens e Baixa de Estoque
-        $sqlItem = "INSERT INTO vendas_itens (id_venda, id_produto, quantidade, valor_unitario, valor_total) VALUES (?, ?, ?, ?, ?)";
-        $stmtItem = $pdo->prepare($sqlItem);
+        // Chamar Service Layer (ele gerencia TUDO: transação, validações, estoque, financeiro)
+        $resultado = $vendaService->fecharVenda($dados);
         
-        $sqlEstoque = "UPDATE produtos SET estoque_inicial = estoque_inicial - ? WHERE id = ? AND monitorar_estoque = 1";
-        $stmtEstoque = $pdo->prepare($sqlEstoque);
-
-        foreach ($dados['itens'] as $item) {
-            $stmtItem->execute([$id_venda, $item['id'], $item['qtd'], $item['valor'], $item['total']]);
-            
-            if (!$is_orcamento) {
-                $stmtEstoque->execute([$item['qtd'], $item['id']]);
-            }
-        }
-
-        // 3. LANÇAMENTO FINANCEIRO (apenas se for recebimento)
-        if (!$is_orcamento && $status_pgto === 'PAGO') {
-            // Buscar nome do cliente
-            $nome_cliente = 'Consumidor Final';
-            if (!empty($dados['id_cliente'])) {
-                $stmtCli = $pdo->prepare("SELECT nome FROM clientes WHERE id = ?");
-                $stmtCli->execute([$dados['id_cliente']]);
-                $cliente_data = $stmtCli->fetch(PDO::FETCH_ASSOC);
-                if ($cliente_data) {
-                    $nome_cliente = $cliente_data['nome'];
-                }
-            }
-
-            // Buscar dados da forma de pagamento
-            $nome_forma_pgto = $dados['nome_forma_pagamento'] ?? 'Não informada';
-            $tipo_forma_pgto = null;
-            $id_conta_destino = null;
-            $id_forma_base = $dados['forma_pagamento'] ?? null;
-            
-            // Dados de parcelamento
-            $qtd_parcelas = $dados['qtd_parcelas'] ?? 1;
-            $taxa_aplicada = $dados['taxa_aplicada'] ?? '0%';
-            
-            // ✅ CALCULAR VALOR LÍQUIDO (DESCONTANDO A TAXA DA OPERADORA)
-            $valor_bruto = $dados['total_geral']; // Valor total da venda
-            $valor_liquido = $valor_bruto; // Inicialmente é o mesmo
-            $valor_taxa_descontada = 0;
-            
-            // Extrair porcentagem da taxa (ex: "4%" -> 4)
-            $percentual_taxa = 0;
-            if (preg_match('/(\d+(?:\.\d+)?)%/', $taxa_aplicada, $matches)) {
-                $percentual_taxa = floatval($matches[1]);
-            }
-            
-            // Se houver taxa, calcular o valor líquido
-            if ($percentual_taxa > 0) {
-                $valor_taxa_descontada = ($valor_bruto * $percentual_taxa) / 100;
-                $valor_liquido = $valor_bruto - $valor_taxa_descontada;
-            }
-            
-            if ($id_forma_base) {
-                $stmtForma = $pdo->prepare("SELECT nome_forma, tipo, configuracoes FROM formas_pagamento WHERE id = ?");
-                $stmtForma->execute([$id_forma_base]);
-                $forma_data = $stmtForma->fetch(PDO::FETCH_ASSOC);
-                
-                if ($forma_data) {
-                    $tipo_forma_pgto = $forma_data['tipo'];
-                    
-                    if (!empty($forma_data['configuracoes'])) {
-                        $configuracoes_forma = json_decode($forma_data['configuracoes'], true);
-                        $id_conta_destino = $configuracoes_forma['id_conta_destino'] ?? null;
-                    }
-                }
-            }
-
-            // Determinar conta financeira destino
-            $id_conta_financeira_destino = null;
-            
-            if ($tipo_forma_pgto === 'Espécie') {
-                $id_caixa = !empty($dados['caixa_ativo']) ? $dados['caixa_ativo'] : null;
-                
-                if ($id_caixa) {
-                    $stmtCaixaUser = $pdo->prepare("
-                        SELECT u.id_conta_caixa 
-                        FROM caixas c 
-                        INNER JOIN usuarios u ON c.id_usuario = u.id 
-                        WHERE c.id = ?
-                    ");
-                    $stmtCaixaUser->execute([$id_caixa]);
-                    $conta_caixa_data = $stmtCaixaUser->fetch(PDO::FETCH_ASSOC);
-                    
-                    if ($conta_caixa_data && !empty($conta_caixa_data['id_conta_caixa'])) {
-                        $id_conta_financeira_destino = $conta_caixa_data['id_conta_caixa'];
-                        
-                        $stmtSaldoAtual = $pdo->prepare("SELECT saldo_inicial FROM contas_financeiras WHERE id = ?");
-                        $stmtSaldoAtual->execute([$id_conta_financeira_destino]);
-                        $saldo_atual = $stmtSaldoAtual->fetchColumn();
-                        
-                        // ✅ USAR VALOR LÍQUIDO (já descontada a taxa)
-                        $novo_saldo = $saldo_atual + $valor_liquido;
-                        
-                        $stmtAtualizaSaldo = $pdo->prepare("UPDATE contas_financeiras SET saldo_inicial = ?, data_saldo = ? WHERE id = ?");
-                        $stmtAtualizaSaldo->execute([$novo_saldo, date('Y-m-d'), $id_conta_financeira_destino]);
-                    }
-                }
-            } else {
-                if ($id_conta_destino) {
-                    $id_conta_financeira_destino = $id_conta_destino;
-                    
-                    $stmtSaldoAtual = $pdo->prepare("SELECT saldo_inicial FROM contas_financeiras WHERE id = ?");
-                    $stmtSaldoAtual->execute([$id_conta_financeira_destino]);
-                    $saldo_atual = $stmtSaldoAtual->fetchColumn();
-                    
-                    // ✅ USAR VALOR LÍQUIDO (já descontada a taxa)
-                    $novo_saldo = $saldo_atual + $valor_liquido;
-                    
-                    $stmtAtualizaSaldo = $pdo->prepare("UPDATE contas_financeiras SET saldo_inicial = ?, data_saldo = ? WHERE id = ?");
-                    $stmtAtualizaSaldo->execute([$novo_saldo, date('Y-m-d'), $id_conta_financeira_destino]);
-                }
-            }
-
-            $id_caixa = !empty($dados['caixa_ativo']) ? $dados['caixa_ativo'] : null;
-
-            // Inserir lançamento com parcelamento
-            $sqlLancamento = "INSERT INTO lancamentos (
-                id_admin, 
-                tipo, 
-                categoria, 
-                descricao, 
-                documento, 
-                fornecedor_cliente, 
-                id_venda, 
-                data_vencimento, 
-                data_pagamento, 
-                valor,
-                parcela_atual,
-                total_parcelas,
-                forma_pagamento,
-                id_conta_financeira,
-                status,
-                id_caixa_referencia,
-                data_cadastro
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, NOW())";
-            
-            // ✅ DESCRIÇÃO DETALHADA COM VALORES BRUTO E LÍQUIDO
-            $descricao_lancamento = "Venda PDV #$id_venda";
-            if ($qtd_parcelas > 1) {
-                $descricao_lancamento .= " - {$qtd_parcelas}x";
-            }
-            if ($percentual_taxa > 0) {
-                $descricao_lancamento .= " | Taxa: {$taxa_aplicada} (R$ " . number_format($valor_taxa_descontada, 2, ',', '.') . ")";
-                $descricao_lancamento .= " | Bruto: R$ " . number_format($valor_bruto, 2, ',', '.') . " → Líquido: R$ " . number_format($valor_liquido, 2, ',', '.');
-            }
-            $documento_lancamento = (string)$id_venda;
-            
-            $stmtLanc = $pdo->prepare($sqlLancamento);
-            $stmtLanc->execute([
-                $id_admin,
-                'ENTRADA',
-                'VENDAS',
-                $descricao_lancamento,
-                $documento_lancamento,
-                $nome_cliente,
-                $id_venda,
-                $dados['data'],
-                $valor_liquido, // ✅ REGISTRAR VALOR LÍQUIDO (JÁ DESCONTADA A TAXA)
-                1,
-                $qtd_parcelas,
-                $nome_forma_pgto,
-                $id_conta_financeira_destino,
-                'PAGO',
-                $id_caixa
+        if ($resultado['success']) {
+            echo json_encode([
+                'status' => 'success', 
+                'message' => $resultado['message'], 
+                'id' => $resultado['id']
+            ]);
+        } else {
+            echo json_encode([
+                'status' => 'error', 
+                'message' => $resultado['message']
             ]);
         }
 
-        $pdo->commit();
-        $msg_sucesso = $is_orcamento ? 'Orçamento salvo com sucesso!' : 'Venda realizada com sucesso!';
-        echo json_encode(['status' => 'success', 'message' => $msg_sucesso, 'id' => $id_venda]);
-
     } catch (Exception $e) {
-        $pdo->rollBack();
-        echo json_encode(['status' => 'error', 'message' => 'Erro ao salvar: ' . $e->getMessage()]);
+        echo json_encode([
+            'status' => 'error', 
+            'message' => 'Erro ao processar venda: ' . $e->getMessage()
+        ]);
     }
     exit;
 }
