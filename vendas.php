@@ -1067,7 +1067,7 @@ try {
                                 <i class="fas fa-lock"></i> Fechar Caixa
                             </button>
                         <?php else: ?>
-                            <button class="btn-widget" style="background: #28a745;" onclick="window.location.href='vendas/abrir_caixa.php'">
+                            <button class="btn-widget" style="background: #28a745;" onclick="window.location.href='abrir_caixa.php'">
                                 <i class="fas fa-key"></i> Abrir Caixa
                             </button>
                         <?php endif; ?>
