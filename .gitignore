@@ -34,3 +34,4 @@ ftp_check_v2.txt
 # Arquivos com Senhas (Segurança)
 deploy.js
 config/configuracoes.php
+.env

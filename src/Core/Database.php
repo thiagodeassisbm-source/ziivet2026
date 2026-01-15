@@ -4,6 +4,7 @@ namespace App\Core;
 
 use PDO;
 use PDOException;
+use App\Utils\Env;
 
 class Database
 {
@@ -12,28 +13,19 @@ class Database
 
     private function __construct()
     {
-        // Detect environment logic similar to legacy config, but cleaner
-        $port = $_SERVER['SERVER_PORT'] ?? '80';
-        $hostName = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        
-        $isLocalhost = ($hostName === 'localhost:8000' || $hostName === 'localhost' || str_contains($hostName, '127.0.0.1'));
+        // Carregar variáveis de ambiente
+        Env::load(__DIR__ . '/../../.env');
 
-        if ($isLocalhost) {
-            $host = 'localhost';
-            $db   = 'u315410518_app';
-            $user = 'root';
-            $pass = '';
-        } else {
-            // Production credentials
-            $host = 'localhost';
-            $db   = 'u315410518_app';
-            $user = 'u315410518_app';
-            $pass = '|zQrNOud4Kt';
-        }
+        $host = Env::get('DB_HOST', 'localhost');
+        $db   = Env::get('DB_NAME', 'u315410518_app');
+        $user = Env::get('DB_USER', 'root');
+        $pass = Env::get('DB_PASS', '');
+        $charset = Env::get('DB_CHARSET', 'utf8mb4');
+
+        $appEnv = Env::get('APP_ENV', 'local');
 
         try {
-            // Using utf8mb4 for full unicode support
-            $dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
+            $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
             
             $this->connection = new PDO($dsn, $user, $pass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -41,12 +33,9 @@ class Database
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
         } catch (PDOException $e) {
-            // In a better Clean Arch, we would log this to a file and throw a generic DomainException
-            // ensuring we don't expose credentials.
-            if ($isLocalhost) {
+            if ($appEnv === 'local') {
                 die("Database Connection Error (Core): " . $e->getMessage());
             } else {
-                // Log error safely here if logger exists
                 die("Erro de conexão com o banco de dados.");
             }
         }

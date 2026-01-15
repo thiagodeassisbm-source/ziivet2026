@@ -3,6 +3,7 @@
 namespace App\Application\Auth;
 
 use App\Utils\Response;
+use App\Utils\Env;
 
 /**
  * Middleware de autenticação para proteger endpoints da API
@@ -137,11 +138,6 @@ class AuthMiddleware
         return self::verificarSessao();
     }
 
-    /**
-     * Chave secreta para assinatura do JWT
-     * Em produção, deve ser uma variável de ambiente complexa.
-     */
-    private const JWT_SECRET = 'ziipvet-secret-key-2026-v1-!@#$';
 
     /**
      * Gera um token JWT para um usuário
@@ -211,7 +207,8 @@ class AuthMiddleware
      */
     private static function sign(string $data): string
     {
-        return hash_hmac('sha256', $data, self::JWT_SECRET, true);
+        $secret = Env::get('JWT_SECRET', 'ziipvet-fallback-secret-key-!@#$');
+        return hash_hmac('sha256', $data, $secret, true);
     }
 
     /**

@@ -7,16 +7,19 @@ use App\Core\Database;
 use Exception;
 use PDO;
 use App\Utils\Sanitizer;
+use App\Application\Service\AuditService;
 
 class VendaService
 {
     private VendaRepository $vendaRepository;
     private Database $db;
+    private AuditService $auditService;
 
-    public function __construct(VendaRepository $vendaRepository, Database $db)
+    public function __construct(VendaRepository $vendaRepository, Database $db, AuditService $auditService)
     {
         $this->vendaRepository = $vendaRepository;
         $this->db = $db;
+        $this->auditService = $auditService;
     }
 
     /**
@@ -123,10 +126,24 @@ class VendaService
                 $this->processarPagamento($idVenda, $dados);
             }
 
-            $conn->commit();
-
             $mensagem = $isOrcamento ? 'Orçamento salvo com sucesso!' : 'Venda realizada com sucesso!';
             
+            // 4. Registrar Logs de Auditoria
+            try {
+                $this->auditService->log(
+                    $isOrcamento ? 'CREATE_ORCAMENTO' : 'CREATE_VENDA',
+                    'VENDA',
+                    $idVenda,
+                    [
+                        'valor_total' => $dados['total_geral'],
+                        'id_cliente' => $dados['id_cliente'] ?? null,
+                        'itens_count' => count($dados['itens'])
+                    ]
+                );
+            } catch (Exception $e) {
+                // Não bloqueia a transação se o log falhar
+            }
+
             return [
                 'success' => true,
                 'message' => $mensagem,

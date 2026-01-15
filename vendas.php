@@ -15,7 +15,9 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use App\Core\Database;
 use App\Infrastructure\Repository\VendaRepository;
+use App\Infrastructure\Repository\AuditLogRepository;
 use App\Application\Service\VendaService;
+use App\Application\Service\AuditService;
 use App\Utils\Csrf;
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -34,7 +36,9 @@ $usuario_logado = $_SESSION['nome'] ?? 'Sistema';
 try {
     $db = Database::getInstance();
     $vendaRepository = new VendaRepository($db);
-    $vendaService = new VendaService($vendaRepository, $db);
+    $auditRepo = new AuditLogRepository($db);
+    $auditService = new AuditService($auditRepo);
+    $vendaService = new VendaService($vendaRepository, $db, $auditService);
 } catch (Exception $e) {
     die("Erro ao inicializar sistema: " . $e->getMessage());
 }

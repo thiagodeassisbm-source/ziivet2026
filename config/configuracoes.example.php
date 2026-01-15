@@ -1,40 +1,47 @@
 <?php
-// Configurações do Banco de Dados
-// Detecta se está rodando localmente
-$is_localhost = ($_SERVER['HTTP_HOST'] == 'localhost:8000' || $_SERVER['SERVER_NAME'] == 'localhost');
+// =========================================================================================
+// ZIIPVET - ARQUIVO DE CONFIGURAÇÃO (EXEMPLO)
+// =========================================================================================
 
-if ($is_localhost) {
-    // Configurações Locais
-    $host = 'localhost';
-    $db   = 'u315410518_app';
-    $user = 'root';
-    $pass = '';
-    $sgbd = 'mysql';
-} else {
-    // Configurações de Produção
-    $host = 'localhost';
-    $db   = 'NOME_DO_BANCO';
-    $user = 'USUARIO_DO_BANCO';
-    $pass = 'SENHA_DO_BANCO';
-    $sgbd = 'mysql';
+// Carregar Autoload e Utilitários de Segurança
+require_once __DIR__ . '/../vendor/autoload.php';
+use App\Utils\Csrf;
+use App\Utils\Env;
+
+// Carregar variáveis de ambiente (Crie o arquivo .env na raiz baseado no .env.example)
+Env::load(__DIR__ . '/../.env');
+
+// --- PROTEÇÃO CSRF GLOBAL ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $uri = $_SERVER['REQUEST_URI'] ?? '';
+    $pagina_atual = basename($_SERVER['PHP_SELF']);
+    
+    $is_api = (strpos($uri, '/api/') !== false);
+    $is_login = ($pagina_atual === 'login.php');
+
+    if (!$is_api && !$is_login) {
+        $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+        if (!Csrf::validate($token)) {
+            http_response_code(403);
+            die('Erro de segurança CSRF.');
+        }
+    }
 }
+
+// Configurações do Banco de Dados via Variáveis de Ambiente
+$host = Env::get('DB_HOST', 'localhost');
+$db   = Env::get('DB_NAME', 'nome_do_banco');
+$user = Env::get('DB_USER', 'root');
+$pass = Env::get('DB_PASS', '');
+$sgbd = 'mysql';
 
 try {
     $pdo = new PDO("$sgbd:host=$host;dbname=$db;charset=utf8", $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    die("Erro ao conectar ao banco de dados: " . $e->getMessage());
+    die("Erro ao conectar ao banco de dados.");
 }
 
-if (!isset($_SESSION)) {
-    session_start();
-}
-
-if ($is_localhost) {
-    define('URL_BASE', 'http://localhost:8000/');
-} else {
-    define('URL_BASE', 'https://www.lepetboutique.com.br/app/');
-}
-
-define('COR_PRIMARIA', '#d32f2f');
-?>
+// Definição da URL Base
+$url_base_env = Env::get('URL_BASE', 'http://localhost:8000/');
+define('URL_BASE', $url_base_env);

@@ -31,27 +31,30 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
-// Conexão com banco
-try {
-    $pdo = new PDO(
-        'mysql:host=localhost;dbname=u315410518_app;charset=utf8mb4',
-        'u315410518_app',
-        '|zQrNOud4Kt',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
-    retornarJSON(['status' => 'error', 'message' => 'Erro ao conectar ao banco']);
-}
+// Conexão com banco via configuração central
+require_once __DIR__ . '/config/configuracoes.php';
+// $pdo já está disponível via configuracoes.php
 
-// Processar XML
-try {
-    // Validar upload
-    if ($_FILES['xml_file']['error'] !== UPLOAD_ERR_OK) {
-        throw new Exception("Erro no upload do arquivo");
-    }
+// Processar XML via Serviço Seguro
+use App\Application\Service\FileUploaderService;
 
-    // Ler XML
-    $xml_content = file_get_contents($_FILES['xml_file']['tmp_name']);
+try {
+    $uploader = new FileUploaderService();
+    $uploadDir = __DIR__ . '/uploads/temp_xml'; // Pasta para processamento temporário
+    
+    // Tipos XML permitidos
+    $allowedTypes = ['text/xml', 'application/xml'];
+    
+    // Realiza o upload seguro (valida MIME real e renomeia o arquivo)
+    $fileName = $uploader->upload($_FILES['xml_file'], $uploadDir, $allowedTypes);
+    $filePath = $uploadDir . '/' . $fileName;
+
+    // Ler conteúdo do arquivo seguro
+    $xml_content = file_get_contents($filePath);
+    
+    // Remover o arquivo temporário após leitura (opcional, dependendo da necessidade de auditoria)
+    unlink($filePath);
+
     if (empty($xml_content)) {
         throw new Exception("Arquivo XML vazio");
     }
