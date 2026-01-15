@@ -17,6 +17,62 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
+// PROCESSAMENTO DE EXCLUSÃO (ADMIN)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'excluir_caixa') {
+    ob_clean();
+    header('Content-Type: application/json');
+
+    try {
+        $pdo->beginTransaction();
+
+        $id_caixa = $_POST['id'];
+
+        // 1. Busca dados do caixa
+        $stmtCaixa = $pdo->prepare("SELECT * FROM caixas WHERE id = ? AND id_admin = ?");
+        $stmtCaixa->execute([$id_caixa, $id_admin]);
+        $caixa = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+
+        if (!$caixa) {
+            throw new Exception("Caixa não encontrado.");
+        }
+
+        // 2. Busca conta do usuário
+        $stmtUser = $pdo->prepare("SELECT id_conta_caixa FROM usuarios WHERE id = ?");
+        $stmtUser->execute([$caixa['id_usuario']]);
+        $id_conta_usuario = $stmtUser->fetchColumn();
+
+        // 3. Estornar valor inicial (Suprimento) se houver tabela 'contas_financeiras'
+        if ($caixa['valor_inicial'] > 0 && !empty($caixa['id_conta_origem']) && !empty($id_conta_usuario)) {
+            $valor = $caixa['valor_inicial'];
+            $conta_origem = $caixa['id_conta_origem'];
+            $hoje = date('Y-m-d');
+
+            // Devolver dinheiro para a Origem (Ex: Fundo Fixo)
+            $pdo->prepare("UPDATE contas_financeiras SET saldo_inicial = saldo_inicial + ?, data_saldo = ? WHERE id = ?")
+                ->execute([$valor, $hoje, $conta_origem]);
+
+            // Tirar dinheiro da conta do Usuário (Ex: Caixa Thiago)
+            $pdo->prepare("UPDATE contas_financeiras SET saldo_inicial = saldo_inicial - ?, data_saldo = ? WHERE id = ?")
+                ->execute([$valor, $hoje, $id_conta_usuario]);
+        }
+        
+        // 4. Excluir lançamentos financeiros vinculados a este caixa
+        $pdo->prepare("DELETE FROM contas WHERE id_caixa_referencia = ?")->execute([$id_caixa]);
+        
+        // 5. Excluir o caixa
+        $pdo->prepare("DELETE FROM caixas WHERE id = ?")->execute([$id_caixa]);
+
+        $pdo->commit();
+        echo json_encode(['status' => 'success', 'message' => 'Caixa excluído e valores estornados com sucesso!']);
+        exit;
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['status' => 'error', 'message' => 'Erro: ' . $e->getMessage()]);
+        exit;
+    }
+}
+
 // PROCESSAMENTO DE ENCERRAMENTO (ADMIN)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
     try {
@@ -524,6 +580,10 @@ $titulo_pagina = "Movimentação de Caixas";
                                     <a href="detalhes_movimentacao.php?id=<?= $mov['id'] ?>" class="btn-view" title="Ver Detalhes">
                                         <i class="fas fa-eye"></i>
                                     </a>
+                                    
+                                    <button class="btn-icon-action" style="color: #dc3545; border: 1px solid #dc3545; margin-left: 5px;" title="Excluir Caixa" onclick="excluirCaixa(<?= $mov['id'] ?>)">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
 
                                     <?php if($mov['status'] == 'ABERTO'): ?>
                                         <span class="status-aberto">
@@ -602,6 +662,38 @@ $titulo_pagina = "Movimentação de Caixas";
         function abrirModalFechamento(dados) {
             document.getElementById('modal_id_caixa').value = dados.id;
             document.getElementById('modalFechamento').classList.add('show');
+        }
+
+        function excluirCaixa(id) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: "Ao excluir o caixa, os valores de SUPRIMENTO serão estornados (devolvidos). Deseja continuar?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post('movimentacao_caixa.php', {
+                        acao: 'excluir_caixa', 
+                        id: id
+                    }, function(response) {
+                        // Tenta parsear JSON se vier como string
+                        if(typeof response === 'string') {
+                            try { response = JSON.parse(response); } catch(e) {}
+                        }
+                        
+                        if (response.status === 'success') {
+                            Swal.fire('Excluído!', response.message, 'success')
+                            .then(() => location.reload());
+                        } else {
+                            Swal.fire('Erro!', response.message || 'Erro ao excluir.', 'error');
+                        }
+                    }, 'json');
+                }
+            })
         }
         
         $(document).ready(function(){
