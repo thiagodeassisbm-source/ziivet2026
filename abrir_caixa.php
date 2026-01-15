@@ -117,13 +117,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             $data_hoje = date('Y-m-d');
 
             $sqlSaida = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia) 
-                         VALUES (?, 'Despesa', '1', ?, 'usuario', ?, ?, 'SUPRIMENTO', ?, ?, ?, 'PAGO', NOW(), NOW(), ?)";
+                         VALUES (?, 'Despesa', 'Caixa', ?, 'usuario', ?, ?, 'SUPRIMENTO', ?, ?, ?, 'PAGO', NOW(), NOW(), ?)";
             
             $stmtSaida = $pdo->prepare($sqlSaida);
             $stmtSaida->execute([$id_admin, $conta_origem, $id_usuario, $desc_lancamento, $data_hoje, $valor, $valor, $id_caixa_gerado]);
 
             $sqlEntrada = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia) 
-                           VALUES (?, 'Receita', '1', ?, 'usuario', ?, ?, 'SUPRIMENTO', ?, ?, ?, 'PAGO', NOW(), NOW(), ?)";
+                           VALUES (?, 'Receita', 'Caixa', ?, 'usuario', ?, ?, 'SUPRIMENTO', ?, ?, ?, 'PAGO', NOW(), NOW(), ?)";
             
             $stmtEntrada = $pdo->prepare($sqlEntrada);
             $stmtEntrada->execute([$id_admin, $id_conta_usuario, $id_usuario, $desc_lancamento, $data_hoje, $valor, $valor, $id_caixa_gerado]);
