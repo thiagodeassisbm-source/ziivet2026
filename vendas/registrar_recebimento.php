@@ -747,6 +747,16 @@ async function finalizarVendaComPagamento() {
     const formData = new FormData();
     formData.append('acao', 'salvar_venda');
     formData.append('dados_venda', JSON.stringify(dados));
+    
+    // ✅ INCLUIR TOKEN CSRF
+    let csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+    if (!csrfToken) {
+        csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    }
+    
+    if (csrfToken) {
+        formData.append('csrf_token', csrfToken);
+    }
 
     try {
         const res = await fetch('vendas.php', { method: 'POST', body: formData });

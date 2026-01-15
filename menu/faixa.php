@@ -5,8 +5,9 @@
  */
 use App\Utils\Csrf;
 echo Csrf::getMetaTag();
+$path_prefix = $path_prefix ?? '';
 ?>
-<script src="js/csrf_protection.js"></script>
+<script src="<?= $path_prefix ?>js/csrf_protection.js"></script>
 
 
 <header class="faixa-superior">
@@ -54,4 +55,7 @@ echo Csrf::getMetaTag();
 </header>
 
 <!-- JavaScript do reconhecimento de voz mantido igual -->
-<script src="js/voice-recognition.js"></script>
+<script src="<?= $path_prefix ?>js/voice-recognition.js"></script>
+
+<!-- ASSISTENTE VIRTUAL TATA -->
+<?php include_once __DIR__ . '/../includes/assistant_widget.php'; ?>

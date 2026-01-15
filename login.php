@@ -119,12 +119,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form action="login.php" method="POST">
                 <div class="input-box">
                     <input type="email" name="email" value="<?= htmlspecialchars($email_cookie) ?>" placeholder="Seu e-mail" required autofocus>
-                    <i class="fas fa-envelope"></i>
+                    <i class="fas fa-envelope icon-field"></i>
                 </div>
 
                 <div class="input-box">
                     <input type="password" name="senha" id="inputSenha" value="<?= htmlspecialchars($senha_cookie) ?>" placeholder="Sua senha" required>
-                    <i class="fas fa-lock"></i>
+                    <i class="fas fa-lock icon-field"></i>
                     <i class="far fa-eye toggle-pass" onclick="toggleSenha()"></i>
                 </div>
 

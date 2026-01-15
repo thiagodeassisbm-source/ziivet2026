@@ -144,6 +144,8 @@ class VendaService
                 // Não bloqueia a transação se o log falhar
             }
 
+            $conn->commit();
+
             return [
                 'success' => true,
                 'message' => $mensagem,

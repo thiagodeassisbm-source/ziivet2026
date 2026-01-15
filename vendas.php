@@ -1,4 +1,5 @@
 <?php
+ob_start();
 /**
  * =========================================================================================
  * ZIIPVET - PONTO DE VENDA (PDV) - VERSÃO MODULAR
@@ -81,45 +82,54 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'buscar_animais') {
     exit;
 }
 
-// ==========================================================
-// SALVAR VENDA / ORÇAMENTO - USANDO SERVICE LAYER
-// ==========================================================
-if (isset($_POST['acao']) && $_POST['acao'] === 'salvar_venda') {
-    ob_clean();
-    header('Content-Type: application/json');
+    // ==========================================================
+    // SALVAR VENDA / ORÇAMENTO - USANDO SERVICE LAYER
+    // ==========================================================
+    if (isset($_POST['acao']) && $_POST['acao'] === 'salvar_venda') {
+        // Limpar qualquer saída anterior (warnings, HTML, whitespace)
+        ob_end_clean();
+        ob_start(); // Iniciar novo buffer para garantir pureza
+        
+        // Desativar erros visuais para não quebrar JSON
+        error_reporting(0);
+        ini_set('display_errors', 0);
+        
+        header('Content-Type: application/json');
 
-    try {
-        // Decodificar dados da venda
-        $dados = json_decode($_POST['dados_venda'], true);
-        
-        // Adicionar informações do contexto
-        $dados['id_admin'] = $id_admin;
-        $dados['usuario_vendedor'] = $usuario_logado;
-        
-        // Chamar Service Layer (ele gerencia TUDO: transação, validações, estoque, financeiro)
-        $resultado = $vendaService->fecharVenda($dados);
-        
-        if ($resultado['success']) {
-            echo json_encode([
-                'status' => 'success', 
-                'message' => $resultado['message'], 
-                'id' => $resultado['id']
-            ]);
-        } else {
+        try {
+            // Decodificar dados da venda
+            $dados = json_decode($_POST['dados_venda'], true);
+            
+            // Adicionar informações do contexto
+            $dados['id_admin'] = $id_admin;
+            $dados['usuario_vendedor'] = $usuario_logado;
+            
+            // Chamar Service Layer (ele gerencia TUDO: transação, validações, estoque, financeiro)
+            $resultado = $vendaService->fecharVenda($dados);
+            
+            if ($resultado['success']) {
+                echo json_encode([
+                    'status' => 'success', 
+                    'message' => $resultado['message'], 
+                    'id' => $resultado['id']
+                ]);
+            } else {
+                echo json_encode([
+                    'status' => 'error', 
+                    'message' => $resultado['message']
+                ]);
+            }
+
+        } catch (Exception $e) {
             echo json_encode([
                 'status' => 'error', 
-                'message' => $resultado['message']
+                'message' => 'Erro ao processar venda: ' . $e->getMessage()
             ]);
         }
-
-    } catch (Exception $e) {
-        echo json_encode([
-            'status' => 'error', 
-            'message' => 'Erro ao processar venda: ' . $e->getMessage()
-        ]);
+        
+        // Garantir que nada mais seja enviado
+        exit;
     }
-    exit;
-}
 
 // ==========================================================
 // CARREGAMENTO INICIAL
@@ -306,6 +316,9 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $titulo_pagina ?> | ZiipVet</title>
+    
+    <!-- CSRF Token -->
+    <?= \App\Utils\Csrf::getMetaTag() ?>
     
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/menu.css">
@@ -1080,6 +1093,7 @@ try {
     <?php include 'vendas/registrar_recebimento.php'; ?>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="js/csrf_protection.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -1092,45 +1106,29 @@ try {
                 width: '100%'
             });
             
+            // Carregamento Inicial
+            var clienteInicial = $('#sel_cliente').val();
+            carregarAnimais(clienteInicial);
+
+            // Evento: Mudança de Cliente
             $('#sel_cliente').on('change', function() {
-                if(isSystemChange) return;
                 var idCliente = $(this).val();
                 
-                if (idCliente) {
-                    $.ajax({
-                        url: 'vendas.php', 
-                        type: 'POST', 
-                        dataType: 'json',
-                        data: { acao: 'buscar_animais', id_cliente: idCliente },
-                        success: function(response) {
-                            var animalSelect = $('#sel_animal');
-                            animalSelect.empty();
-                            if (response.status === 'success' && response.dados.length > 0) {
-                                animalSelect.append('<option value="">Selecione o animal...</option>');
-                                $.each(response.dados, function(i, animal) {
-                                    animalSelect.append($('<option>', { 
-                                        value: animal.id, 
-                                        text: animal.nome_paciente, 
-                                        'data-cliente': animal.id_cliente 
-                                    }));
-                                });
-                            } else {
-                                animalSelect.append('<option value="">Nenhum animal encontrado</option>');
-                            }
-                            animalSelect.trigger('change.select2'); 
-                        }
-                    });
-                } else {
-                    carregarTodosAnimais();
-                }
+                // Se a mudança foi causada pela seleção do animal, preservamos o animal
+                // Se foi manual (isSystemChange = false), limpamos o animal (null)
+                var animalParaManter = isSystemChange ? $('#sel_animal').val() : null;
+                
+                carregarAnimais(idCliente, animalParaManter);
             });
 
+            // Evento: Seleção de Animal
             $('#sel_animal').on('select2:select', function(e) {
                 var data = e.params.data;
                 var element = $(data.element);
                 var idDono = element.attr('data-cliente');
                 var clienteAtual = $('#sel_cliente').val();
 
+                // Se o animal tem dono e é diferente do atual
                 if(idDono && idDono !== clienteAtual) {
                     isSystemChange = true; 
                     $('#sel_cliente').val(idDono).trigger('change');
@@ -1149,26 +1147,63 @@ try {
             });
         });
 
-        function carregarTodosAnimais() {
+        // Função Unificada para Carregar Animais
+        function carregarAnimais(idCliente = null, manterAnimalId = null) {
+            var animalSelect = $('#sel_animal');
+            
+            // Feedback de carregamento
+            animalSelect.prop('disabled', true);
+            
+            var dataRequest = { acao: 'buscar_animais' };
+            if (idCliente) {
+                dataRequest.id_cliente = idCliente;
+            }
+
             $.ajax({
                 url: 'vendas.php', 
                 type: 'POST', 
                 dataType: 'json',
-                data: { acao: 'buscar_animais' }, 
+                data: dataRequest,
                 success: function(response) {
-                    var animalSelect = $('#sel_animal');
-                    animalSelect.empty().append('<option value="">Pesquise ou selecione...</option>');
-                    if (response.status === 'success') {
+                    // Limpar e adicionar opção padrão
+                    animalSelect.empty();
+                    
+                    if (response.status === 'success' && response.dados && response.dados.length > 0) {
+                        animalSelect.append('<option value="">Selecione um animal...</option>');
+                        
                         $.each(response.dados, function(i, animal) {
-                            var texto = animal.nome_paciente + (animal.nome_dono ? ' (' + animal.nome_dono + ')' : '');
+                            var texto = animal.nome_paciente;
+                            if (animal.nome_dono) {
+                                texto += ' (' + animal.nome_dono + ')';
+                            }
+                            
                             animalSelect.append($('<option>', { 
                                 value: animal.id, 
                                 text: texto, 
                                 'data-cliente': animal.id_cliente 
                             }));
                         });
+
+                        // Se tiver apenas 1 animal e filtrou por cliente, auto-seleciona
+                        if (idCliente && response.dados.length === 1 && !manterAnimalId) {
+                            animalSelect.val(response.dados[0].id);
+                        }
+                    } else {
+                         if (idCliente) {
+                            animalSelect.append('<option value="">Nenhum animal cadastrado para este cliente</option>');
+                        } else {
+                            animalSelect.append('<option value="">Pesquise ou selecione...</option>');
+                        }
                     }
-                    animalSelect.trigger('change.select2');
+                    
+                    // Restaurar seleção se solicitado e válido
+                    if (manterAnimalId && animalSelect.find('option[value="'+manterAnimalId+'"]').length > 0) {
+                        animalSelect.val(manterAnimalId);
+                    }
+                },
+                complete: function() {
+                    animalSelect.prop('disabled', false);
+                    animalSelect.trigger('change.select2'); 
                 }
             });
         }
@@ -1300,6 +1335,16 @@ try {
             const formData = new FormData();
             formData.append('acao', 'salvar_venda');
             formData.append('dados_venda', JSON.stringify(dados));
+            
+            // ✅ INCLUIR TOKEN CSRF
+            let csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+            if (!csrfToken) {
+                csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            }
+            
+            if (csrfToken) {
+                formData.append('csrf_token', csrfToken);
+            }
 
             try {
                 const res = await fetch('vendas.php', { method: 'POST', body: formData });

@@ -125,7 +125,6 @@ $titulo_pagina = "Dashboard Principal";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $titulo_pagina ?> | ZiipVet</title>
     
-    <base href="https://www.lepetboutique.com.br/app/">
     <link href="https://fonts.googleapis.com/css2?family=Exo:wght@300;400;600;700;800&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -135,26 +134,30 @@ $titulo_pagina = "Dashboard Principal";
     <link rel="stylesheet" href="css/header.css">
     
     <style>
-        :root { 
-            --fundo: #ecf0f5;
-            --texto-dark: #333;
-            --azul: #17a2b8;
-            --verde: #28a745;
-            --vermelho: #b92426;
-            --roxo: #622599;
-            --laranja: #f39c12;
-            --ciano: #00c0ef;
-            --primaria: #1c329f;
-            --azul-claro: #3258db;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* Apenas ajustes específicos de layout do dashboard que não estão no style.css global */
         
-        body {
-            font-family: 'Exo', 'Source Sans Pro', sans-serif;
-            background-color: var(--fundo);
-            color: var(--texto-dark);
-            min-height: 100vh;
+        /* TÍTULO DA PÁGINA */
+        .page-header-title {
+            font-size: 26px;
+            margin-bottom: 25px;
+            color: #444;
+            font-weight: 700;
+            font-family: 'Exo', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .page-header-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--cor-principal), #8e44ad);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
         }
 
         /* TÍTULO DA PÁGINA */
@@ -215,75 +218,22 @@ $titulo_pagina = "Dashboard Principal";
         }
 
         .small-box h3 {
-            font-size: 42px;
+            font-size: 34px;
             font-weight: 800;
             margin: 0 0 10px 0;
             font-family: 'Exo', sans-serif;
         }
 
-        .small-box p {
-            font-size: 14px;
-            margin: 0;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-family: 'Exo', sans-serif;
-        }
-
-        .small-box .icon-bg {
-            position: absolute;
-            top: 5px;
-            right: 12px;
-            z-index: 0;
-            font-size: 90px;
-            color: rgba(0,0,0,0.12);
-            transition: all 0.3s ease;
-        }
-
-        .small-box:hover .icon-bg {
-            font-size: 100px;
-            transform: rotate(-10deg);
-        }
-
-        .small-box-footer {
-            position: relative;
-            text-align: center;
-            padding: 10px 0;
-            color: rgba(255,255,255,0.9);
-            display: block;
-            z-index: 10;
-            background: rgba(0,0,0,0.15);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.3s;
-            font-family: 'Exo', sans-serif;
-        }
-
-        .small-box-footer:hover {
-            color: #fff;
-            background: rgba(0,0,0,0.25);
-        }
-
-        .small-box-footer i {
-            margin-left: 8px;
-            transition: transform 0.3s;
-        }
-
-        .small-box:hover .small-box-footer i {
-            transform: translateX(5px);
-        }
-
-        /* Cores dos Cards */
-        .bg-blue { background: linear-gradient(135deg, var(--azul) 0%, #138496 100%); }
-        .bg-cyan { background: linear-gradient(135deg, var(--ciano) 0%, #00a7d0 100%); }
-        .bg-orange { background: linear-gradient(135deg, var(--laranja) 0%, #e08e0b 100%); }
-        .bg-red { background: linear-gradient(135deg, var(--vermelho) 0%, #a01f21 100%); }
+        /* Cores dos Cards - Padronizadas */
+        .bg-blue { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
+        .bg-cyan { background: linear-gradient(135deg, #00c0ef 0%, #00a7d0 100%); }
+        .bg-orange { background: linear-gradient(135deg, #f39c12 0%, #e08e0b 100%); }
+        .bg-red { background: linear-gradient(135deg, #b92426 0%, #a01f21 100%); }
 
         /* PAINEIS DE INFORMAÇÕES */
         .info-panels {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -293,12 +243,13 @@ $titulo_pagina = "Dashboard Principal";
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             overflow: hidden;
+            border-top: 3px solid #d2d6de;
         }
         
         .panel-header {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            padding: 18px 20px;
-            border-bottom: 3px solid #dee2e6;
+            background: #fcfcfc;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
             font-size: 16px;
             font-weight: 700;
             color: #444;
@@ -317,7 +268,7 @@ $titulo_pagina = "Dashboard Principal";
         .panel-header i {
             width: 32px;
             height: 32px;
-            background: linear-gradient(135deg, var(--roxo), #8e44ad);
+            background: linear-gradient(135deg, var(--cor-principal), #8e44ad);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -535,74 +486,52 @@ $titulo_pagina = "Dashboard Principal";
             text-decoration: none !important;
         }
 
-        .btn-action i {
-            font-size: 16px;
-        }
-
         .btn-primary {
-            background: var(--roxo);
+            background: var(--cor-principal);
             color: white !important;
-            border-color: var(--roxo);
+            border-color: var(--cor-principal);
         }
 
         .btn-primary:hover {
-            background: #7b2db3;
+            background: var(--cor-escura);
             color: white !important;
-            border-color: #7b2db3;
+            border-color: var(--cor-escura);
         }
 
         .btn-outline-primary {
             background: #fff;
-            color: var(--roxo) !important;
-            border-color: var(--roxo);
+            color: var(--cor-principal) !important;
+            border-color: var(--cor-principal);
         }
 
         .btn-outline-primary:hover {
-            background: var(--roxo);
+            background: var(--cor-principal);
             color: white !important;
-            border-color: var(--roxo);
+            border-color: var(--cor-principal);
         }
 
         .btn-outline-success {
             background: #fff;
-            color: var(--verde) !important;
-            border-color: var(--verde);
+            color: var(--cor-sucesso) !important;
+            border-color: var(--cor-sucesso);
         }
 
         .btn-outline-success:hover {
-            background: var(--verde);
+            background: var(--cor-sucesso);
             color: white !important;
-            border-color: var(--verde);
-        }
-
-        .btn-outline-info {
-            background: #fff;
-            color: #0277bd !important;
-            border-color: #0277bd;
-        }
-
-        .btn-outline-info:hover {
-            background: #0277bd;
-            color: white !important;
-            border-color: #0277bd;
+            border-color: var(--cor-sucesso);
         }
 
         .btn-danger {
-            background: var(--vermelho);
+            background: var(--cor-danger);
             color: white !important;
-            border-color: var(--vermelho);
+            border-color: var(--cor-danger);
         }
 
         .btn-danger:hover {
             background: #a01f21;
             color: white !important;
             border-color: #a01f21;
-        }
-
-        .divider {
-            border: 0;
-            border-top: 2px solid #e9ecef;
-            margin: 5px 0;
         }
 
         /* ANIMAÇÕES */
@@ -772,10 +701,9 @@ $titulo_pagina = "Dashboard Principal";
                     <a href="consultas/vacinas.php" class="btn-action btn-outline-success">
                         <i class="fas fa-syringe"></i> Registrar Vacina
                     </a>
-                    <a href="consultas/receita.php" class="btn-action btn-outline-info">
+                    <a href="consultas/receita.php" class="btn-action btn-outline-primary">
                         <i class="fas fa-file-prescription"></i> Emitir Receita
                     </a>
-                    <hr class="divider">
                     <a href="consultas/listar_vacinas.php" class="btn-action btn-danger">
                         <i class="fas fa-exclamation-triangle"></i> Ver Vacinas Atrasadas
                     </a>
