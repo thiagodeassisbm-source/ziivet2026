@@ -19,6 +19,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use App\Core\Database;
 use App\Infrastructure\Repository\ContaFinanceiraRepository;
 use App\Application\Service\ContaFinanceiraService;
+use App\Utils\Csrf;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -36,6 +37,9 @@ try {
 } catch (Exception $e) {
     die("Erro ao inicializar sistema: " . $e->getMessage());
 }
+
+// Middleware de Segurança
+Csrf::middleware();
 
 // ==========================================================
 // PROCESSAMENTO POST (SALVAR) - USANDO SERVICE LAYER
@@ -90,6 +94,7 @@ $titulo_pagina = $id_edit ? "Editar Conta" : "Contas e cartões";
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $titulo_pagina ?> | ZiipVet</title>
+    
     
     <!-- CSS CENTRALIZADO -->
     <link rel="stylesheet" href="css/style.css">
@@ -433,6 +438,7 @@ $titulo_pagina = $id_edit ? "Editar Conta" : "Contas e cartões";
         </div>
 
         <form method="POST">
+            <?= Csrf::getInput() ?>
             <input type="hidden" name="acao" value="salvar">
             <input type="hidden" name="id_edit" value="<?= $dados['id'] ?? '' ?>">
 

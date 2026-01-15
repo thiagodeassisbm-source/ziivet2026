@@ -3,6 +3,7 @@
 namespace App\Application\Service;
 
 use App\Infrastructure\Repository\ClienteRepository;
+use App\Utils\Sanitizer;
 use Exception;
 use PDOException;
 
@@ -98,6 +99,7 @@ class ClienteService
      */
     public function criar(array $dados): array
     {
+        $dados = Sanitizer::clean($dados);
         try {
             // Validações básicas
             if (empty($dados['nome'])) {
@@ -133,6 +135,7 @@ class ClienteService
      */
     public function atualizar(int $id, array $dados): array
     {
+        $dados = Sanitizer::clean($dados);
         try {
             if ($id <= 0) {
                 return [

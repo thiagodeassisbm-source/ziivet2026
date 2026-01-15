@@ -3,7 +3,11 @@
  * ZIIPVET - FAIXA SUPERIOR (SEM TÍTULO)
  * Versão: 2.1.0
  */
+use App\Utils\Csrf;
+echo Csrf::getMetaTag();
 ?>
+<script src="js/csrf_protection.js"></script>
+
 
 <header class="faixa-superior">
     <!-- Visualizador de Áudio -->

@@ -16,6 +16,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use App\Core\Database;
 use App\Infrastructure\Repository\VendaRepository;
 use App\Application\Service\VendaService;
+use App\Utils\Csrf;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -39,9 +40,8 @@ try {
 }
 $usuario_logado = $_SESSION['nome'] ?? 'Sistema';
 
-// ==========================================================
-// PROCESSAMENTO AJAX (JSON)
-// ==========================================================
+// Middleware de Segurança
+Csrf::middleware();
 
 // BUSCAR ANIMAIS
 if (isset($_POST['acao']) && $_POST['acao'] === 'buscar_animais') {
@@ -311,6 +311,7 @@ try {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
 
     <style>
         /* Layout em Grid PDV */

@@ -6,6 +6,7 @@ use App\Infrastructure\Repository\VendaRepository;
 use App\Core\Database;
 use Exception;
 use PDO;
+use App\Utils\Sanitizer;
 
 class VendaService
 {
@@ -67,6 +68,7 @@ class VendaService
      */
     public function fecharVenda(array $dados): array
     {
+        $dados = Sanitizer::clean($dados);
         $conn = $this->db->getConnection();
         
         try {

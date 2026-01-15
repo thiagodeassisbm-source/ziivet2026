@@ -5,6 +5,7 @@ require_once 'config/configuracoes.php'; // Mantendo por enquanto para constante
 use App\Core\Database;
 use App\Infrastructure\Repository\PDOUserRepository;
 use App\Application\Service\AuthService;
+use App\Security\RateLimiter;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -22,7 +23,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Captura o checkbox
     $manter_conectado = isset($_POST['manter_conectado']);
 
-    if (!empty($email) && !empty($senha)) {
+    $ip = RateLimiter::getClientIp();
+    $rateLimiter = new RateLimiter();
+
+    if ($rateLimiter->check($ip)) {
+        $erro = "Muitas tentativas de login. Por favor, aguarde 15 minutos.";
+    } elseif (!empty($email) && !empty($senha)) {
         try {
             // Inicialização da Arquitetura
             $db = Database::getInstance();
@@ -31,6 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Logica de Login
             $user = $authService->login($email, $senha);
+            
+            // Sucesso: Limpar tentativas
+            $rateLimiter->clear($ip);
+            
             $authService->createSession($user);
 
             // Gerenciamento de Cookies (View/Controller Logic)
@@ -46,6 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
 
         } catch (Exception $e) {
+            // Falha: Registrar tentativa
+            $rateLimiter->registerFailure($ip);
             $erro = "Erro: " . $e->getMessage();
         }
     } else {

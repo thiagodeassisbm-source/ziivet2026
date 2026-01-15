@@ -16,8 +16,17 @@ if (!isset($_SESSION['usuario_id']) || !isset($_SESSION['id_admin'])) {
 }
 
 use App\Core\Database;
+use App\Utils\Csrf;
 
 require_once __DIR__ . '/vendor/autoload.php';
+
+// ==========================================================
+// INICIALIZAR PROTEÇÃO CSRF
+// ==========================================================
+// Gerar token CSRF se não existir
+if (!isset($_SESSION['csrf_token'])) {
+    Csrf::generate();
+}
 
 /**
  * FUNÇÃO: temPermissao
