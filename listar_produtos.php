@@ -746,16 +746,47 @@ function gerar_link($pg) {
         // ==========================================================
         // IMPORTAÇÃO CSV (placeholder)
         // ==========================================================
-        document.getElementById('upload_csv').addEventListener('change', function(e) {
+        document.getElementById('upload_csv').addEventListener('change', async function(e) {
             const file = e.target.files[0];
             if (file) {
-                Swal.fire({
-                    title: 'Importar CSV',
-                    text: 'Funcionalidade em desenvolvimento',
-                    icon: 'info',
-                    confirmButtonColor: '#131c71'
+                const result = await Swal.fire({
+                    title: 'Importar Produtos',
+                    text: `Deseja importar os produtos do arquivo: ${file.name}?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, importar',
+                    cancelButtonText: 'Cancelar'
                 });
-                // Aqui você pode implementar a lógica de importação
+
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Processando...',
+                        text: 'Aguarde a importação',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    const formData = new FormData();
+                    formData.append('import_file', file);
+
+                    try {
+                        const response = await fetch('processar_importacao_produtos.php', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+
+                        if (data.status === 'success') {
+                            Swal.fire('Sucesso!', data.message, 'success').then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire('Erro!', data.message, 'error');
+                        }
+                    } catch (error) {
+                        Swal.fire('Erro!', 'Falha na comunicação com o servidor.', 'error');
+                    }
+                }
             }
         });
     </script>

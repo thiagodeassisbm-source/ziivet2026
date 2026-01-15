@@ -14,11 +14,12 @@ ini_set('auto_detect_line_endings', true);
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 $id_admin = $_SESSION['id_admin'] ?? 1;
+
+// Verificação de segurança: Apenas administradores podem realizar importações manuais
+if (!temPermissao('usuarios', 'listar')) {
+    responderJSON(['status' => 'error', 'message' => 'Acesso negado: Apenas administradores podem realizar esta operação.']);
+}
 
 $pasta_temp = __DIR__ . '/temp_uploads';
 if (!is_dir($pasta_temp)) {

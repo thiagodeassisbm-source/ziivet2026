@@ -182,34 +182,29 @@ $titulo_pagina = $id_conta ? "Editar Lançamento" : "Novo Lançamento";
             font-size: 16px;
         }
 
-        /* --- LAYOUT FIXO --- */
+        /* --- LAYOUT FIXO 220PX --- */
         aside.sidebar-container {
             position: fixed; left: 0; top: 0; height: 100vh;
-            width: var(--sidebar-collapsed); z-index: 1000;
-            transition: width var(--transition-speed) var(--transition-ease);
+            width: 220px; z-index: 1000;
         }
-        aside.sidebar-container:hover { width: var(--sidebar-expanded); }
 
         header.top-header {
-            position: fixed; top: 0; left: var(--sidebar-collapsed); right: 0;
+            position: fixed; top: 0; left: 220px; right: 0;
             height: var(--header-height); z-index: 900;
-            transition: left var(--transition-speed) var(--transition-ease);
             margin: 0 !important; 
         }
-        aside.sidebar-container:hover ~ header.top-header { left: var(--sidebar-expanded); }
 
         main.main-content {
-            margin-left: var(--sidebar-collapsed);
+            margin-left: 220px;
             padding-top: calc(var(--header-height) + 30px);
             padding-right: 25px; padding-bottom: 30px; padding-left: 25px;
             min-height: 100vh;
-            transition: margin-left var(--transition-speed) var(--transition-ease);
+            width: auto;
         }
-        aside.sidebar-container:hover ~ main.main-content { margin-left: var(--sidebar-expanded); }
 
         .faixa-superior {
             width: 100% !important; margin: 0 !important;
-            border-radius: 0 0 0 30px !important;
+            border-radius: 0 !important;
         }
 
         /* --- ESTILOS DO FORMULÁRIO --- */

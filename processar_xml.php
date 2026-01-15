@@ -1,7 +1,14 @@
 <?php
-// ==========================================
-// PROCESSAR_XML.PHP - VERSÃO FINAL COM PARCELAS
-// ==========================================
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/auth.php';
+use App\Application\Service\FileUploaderService;
+
+// Verificação de segurança: Apenas administradores podem processar XML
+if (!temPermissao('usuarios', 'listar')) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['status' => 'error', 'message' => 'Acesso negado: Apenas administradores podem realizar esta operação.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 // Limpar buffers de saída
 while (ob_get_level()) {
@@ -36,8 +43,6 @@ require_once __DIR__ . '/config/configuracoes.php';
 // $pdo já está disponível via configuracoes.php
 
 // Processar XML via Serviço Seguro
-use App\Application\Service\FileUploaderService;
-
 try {
     $uploader = new FileUploaderService();
     $uploadDir = __DIR__ . '/uploads/temp_xml'; // Pasta para processamento temporário

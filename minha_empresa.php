@@ -8,6 +8,9 @@
  */
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
+require_once __DIR__ . '/vendor/autoload.php';
+
+use App\Application\Service\FileUploaderService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -24,30 +27,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Recupera o caminho da logo atual
         $logo_path = $_POST['logo_atual'] ?? '';
 
-        // Processar Upload da Logomarca
+        // Processar Upload da Logomarca via Serviço Seguro
         if (isset($_FILES['logomarca']) && $_FILES['logomarca']['error'] === UPLOAD_ERR_OK) {
-            $diretorio = 'uploads/empresa/';
-            if (!is_dir($diretorio)) {
-                mkdir($diretorio, 0777, true);
-            }
-            
-            // Tipos permitidos
-            $tipos_permitidos = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
-            $tipo_arquivo = $_FILES['logomarca']['type'];
-            
-            if (in_array($tipo_arquivo, $tipos_permitidos)) {
-                $extensao = pathinfo($_FILES['logomarca']['name'], PATHINFO_EXTENSION);
-                $nome_logo = "logo_empresa_" . time() . "." . $extensao;
-                $caminho_final = $diretorio . $nome_logo;
+            try {
+                $uploader = new FileUploaderService();
+                $diretorio = 'uploads/empresa/';
                 
-                if (move_uploaded_file($_FILES['logomarca']['tmp_name'], $caminho_final)) {
-                    $logo_path = $caminho_final;
-                    
-                    // Deletar logo antiga se existir
-                    if (!empty($_POST['logo_atual']) && file_exists($_POST['logo_atual'])) {
-                        unlink($_POST['logo_atual']);
-                    }
+                // Tipos permitidos: JPEG, PNG, WEBP (conforme solicitado no prompt 1.2)
+                $tipos_permitidos = ['image/jpeg', 'image/png', 'image/webp'];
+                
+                $nome_logo = $uploader->upload($_FILES['logomarca'], $diretorio, $tipos_permitidos);
+                $logo_path = $diretorio . $nome_logo;
+                
+                // Deletar logo antiga se existir e for diferente da nova
+                if (!empty($_POST['logo_atual']) && file_exists($_POST['logo_atual'])) {
+                    unlink($_POST['logo_atual']);
                 }
+            } catch (Exception $e) {
+                $msg_feedback = "Erro no upload: " . $e->getMessage();
+                $status_feedback = "error";
+                // Interromper se o upload falhar? Geralmente sim para evitar salvar dados parciais
+                throw $e; 
             }
         }
 
@@ -151,31 +151,24 @@ $titulo_pagina = "Minha Empresa";
         line-height: 1.6;
     }
 
-    /* Layout V16.2 Estruturado e Blindado */
+    /* Layout V16.2 Estruturado e Blindado - FIXO 220PX */
     aside.sidebar-container { 
-        position: fixed; left: 0; top: 0; height: 100vh; width: var(--sidebar-collapsed); 
-        z-index: 1000; background: #fff; transition: width var(--transition); 
+        position: fixed; left: 0; top: 0; height: 100vh; width: 220px; 
+        z-index: 1000; background: #fff; 
         box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
     }
-    aside.sidebar-container:hover { width: var(--sidebar-expanded); }
     
     header.top-header { 
-        position: fixed; top: 0; left: var(--sidebar-collapsed); right: 0; 
-        height: var(--header-height); z-index: 900; transition: left var(--transition);
+        position: fixed; top: 0; left: 220px; right: 0; 
+        height: var(--header-height); z-index: 900;
         background: #fff; border-bottom: 1px solid #eee;
         margin: 0 !important;
     }
-    aside.sidebar-container:hover ~ header.top-header { left: var(--sidebar-expanded); }
     
     main.main-content { 
-        margin-left: var(--sidebar-collapsed); 
+        margin-left: 220px; 
         padding: calc(var(--header-height) + 30px) 30px 40px; 
-        transition: margin-left var(--transition); 
-        width: calc(100% - var(--sidebar-collapsed)); /* Blindagem de largura */
-    }
-    aside.sidebar-container:hover ~ main.main-content { 
-        margin-left: var(--sidebar-expanded); 
-        width: calc(100% - var(--sidebar-expanded)); 
+        width: auto;
     }
 
     /* Card Padronizado - AGORA EM TELA CHEIA */

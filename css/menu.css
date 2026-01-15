@@ -1,8 +1,10 @@
 /**
- * SISTEMA ZIIP - MENU LATERAL FIXO 220PX
- * Versão: 7.0 FINAL COMPLETA
- * Com formatação, ícones e espaçamento corretos
+ * SISTEMA ZIIP - MENU LATERAL PADRONIZADO
+ * Versão: 8.0 - PREMIUM DESIGN
+ * Estilo unificado para garantir consistência visual em todas as páginas.
  */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 /* ============================================================
    ESTRUTURA BASE
@@ -10,37 +12,35 @@
 
 .sidebar,
 .sidebar-container {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
     width: 220px !important;
     min-width: 220px !important;
     max-width: 220px !important;
-    background: #131c71 !important; /* cor do fundo do menu */
+    background: #131c71 !important;
     color: #f8f9fa !important;
-    z-index: 1000;
-    overflow-y: auto;
-    overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
-    font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-}
-
-/* Remove hover expansion */
-.sidebar:hover,
-.sidebar-container:hover {
-    width: 220px !important;
+    z-index: 1000 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1) !important;
+    font-family: 'Poppins', sans-serif !important;
+    -webkit-font-smoothing: antialiased !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 /* Scrollbar customizada */
 .sidebar::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 10px;
 }
 
@@ -49,176 +49,134 @@
 }
 
 /* ============================================================
-   HEADER
+   HEADER DO MENU
 ============================================================ */
 
 .sidebar-header {
-    display: flex;
-    align-items: center;
-    padding: 20px 15px;
-    min-height: 75px;
-    background: #0e1552 !important; /* Aqui muda a cor do fundo de onde fica a logo */
-    flex-shrink: 0;
-}
-
-.sidebar-header a {
-    color: #0e1552 !important; /* Aqui tambem muda a cor do fundo de onde fica a logo */
-    text-decoration: none !important;
-    display: flex;
-    align-items: center;
-    width: 100%;
+    display: flex !important;
+    align-items: center !important;
+    padding: 20px 15px !important;
+    min-height: 80px !important;
+    background: #0e1552 !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .logo-icon {
-    min-width: 35px;
-    width: 35px;
-    height: 35px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
+    min-width: 38px !important;
+    width: 38px !important;
+    height: 38px !important;
+    background: linear-gradient(135deg, #622599, #8e44ad) !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    flex-shrink: 0 !important;
     color: #fff !important;
-}
-
-.logo-icon i {
-    color: #fff !important;
-    font-size: 18px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
 }
 
 .logo-text {
-    margin-left: 12px;
+    margin-left: 12px !important;
     display: flex !important;
-    flex-direction: column;
-    white-space: nowrap;
-    opacity: 1 !important;
-    visibility: visible !important;
+    flex-direction: column !important;
+    white-space: nowrap !important;
 }
 
 .logo-text strong {
-    font-size: 17px;
-    letter-spacing: 0.5px;
-    font-weight: 700;
+    font-size: 18px !important;
+    letter-spacing: 0.5px !important;
+    font-weight: 700 !important;
     color: #fff !important;
-    line-height: 1.3;
+    line-height: 1.2 !important;
+    font-family: 'Poppins', sans-serif !important;
 }
 
 .logo-text .version {
-    font-size: 11px;
-    opacity: 0.8;
-    color: rgba(255, 255, 255, 0.8) !important;
-    margin-top: 2px;
+    font-size: 10px !important;
+    opacity: 0.7 !important;
+    color: #fff !important;
+    font-weight: 500 !important;
+    letter-spacing: 1px !important;
 }
 
 /* ============================================================
-   NAVEGAÇÃO
+   NAVEGAÇÃO PRINCIPAL
 ============================================================ */
 
-.sidebar-nav,
-.sidebar ul.components {
-    flex: 1;
-    padding: 15px 12px;
-    list-style: none;
-    margin: 0;
+.sidebar-nav {
+    flex: 1 !important;
+    padding: 15px 12px !important;
+    margin: 0 !important;
+    list-style: none !important;
 }
 
-.nav-item,
-.sidebar ul li a {
+.nav-item {
     display: flex !important;
-    align-items: center;
-    padding: 11px 12px;
-    color: #f8f9fa !important;
+    align-items: center !important;
+    padding: 10px 12px !important;
+    color: rgba(255, 255, 255, 0.8) !important;
     text-decoration: none !important;
-    border-radius: 10px;
-    margin-bottom: 4px;
-    transition: background 0.2s ease, transform 0.1s ease;
-    cursor: pointer;
-    font-size: 14.5px;
-    font-weight: 400;
-    line-height: 1.4;
-    position: relative;
+    border-radius: 10px !important;
+    margin-bottom: 5px !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+    border: 1px solid transparent !important;
 }
 
-.nav-item:hover,
-.sidebar ul li a:hover {
-    background: rgba(255, 255, 255, 0.12) !important;
-    text-decoration: none !important;
-    transform: translateX(2px);
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #fff !important;
+    padding-left: 15px !important;
 }
 
 .nav-item.active,
-.nav-item.active-parent,
-.sidebar ul li a.active {
+.nav-item.active-parent {
     background: #ffffff !important;
-    color: #131c71 !important; /* cor do texto selecionado */
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-weight: 600;
+    color: #131c71 !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
 }
 
-.nav-item.active i,
-.nav-item.active-parent i,
-.sidebar ul li a.active i {
-    color: #131c71 !important; /* cor do icone) */
-}
-
-/* ============================================================
-   ÍCONES
-============================================================ */
-
-.icon-container,
-.nav-item .icon,
-.sidebar ul li a .icon,
-.nav-item i,
-.sidebar ul li a i {
-    min-width: 22px;
-    width: 22px;
-    display: inline-flex !important;
-    justify-content: center;
-    align-items: center;
-    font-size: 16px;
-    flex-shrink: 0;
-    color: #f8f9fa !important;
-    margin-right: 0;
-}
-
-/* Font Awesome específico */
-.nav-item i.fa,
-.nav-item i.fas,
-.nav-item i.far,
-.nav-item i.fab,
-.sidebar ul li a i.fa,
-.sidebar ul li a i.fas,
-.sidebar ul li a i.far,
-.sidebar ul li a i.fab {
-    font-family: "Font Awesome 6 Free" !important;
-    font-weight: 900;
-    font-style: normal;
-    font-variant: normal;
-    text-rendering: auto;
-    line-height: 1;
-    -webkit-font-smoothing: antialiased;
+.nav-item.active .icon-container i,
+.nav-item.active-parent .icon-container i {
+    color: #131c71 !important;
 }
 
 /* ============================================================
-   TEXTOS
+   ÍCONES DO MENU
 ============================================================ */
 
-.link-text,
-.nav-item .text,
-.sidebar ul li a .text,
-.nav-item span:not(.icon):not(.arrow-submenu):not(.badge),
-.sidebar ul li a span:not(.icon):not(.arrow-submenu):not(.badge) {
-    margin-left: 12px !important;
-    display: inline !important;
-    white-space: nowrap;
-    opacity: 1 !important;
-    visibility: visible !important;
+.icon-container {
+    min-width: 24px !important;
+    width: 24px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    font-size: 16px !important;
+    flex-shrink: 0 !important;
     color: inherit !important;
-    font-size: 14.5px;
-    font-weight: inherit;
-    flex: 1;
+}
+
+.icon-container i {
+    font-size: 17px !important;
+}
+
+/* ============================================================
+   TEXTO DO LINK
+============================================================ */
+
+.link-text {
+    margin-left: 12px !important;
+    font-size: 14px !important;
+    font-family: 'Poppins', sans-serif !important;
+    white-space: nowrap !important;
+    flex: 1 !important;
+    letter-spacing: 0.2px !important;
 }
 
 /* ============================================================
@@ -226,152 +184,92 @@
 ============================================================ */
 
 .arrow-submenu {
-    margin-left: auto !important;
-    padding-left: 8px;
-    font-size: 11px;
-    flex-shrink: 0;
-    display: inline-flex !important;
+    font-size: 10px !important;
+    transition: transform 0.3s ease !important;
+    opacity: 0.6 !important;
+}
+
+.active-parent .arrow-submenu {
+    transform: rotate(90deg) !important;
     opacity: 1 !important;
-    visibility: visible !important;
-    transition: transform 0.3s ease;
-    color: currentColor !important;
 }
 
-.has-submenu.active-parent .arrow-submenu,
-.has-submenu[aria-expanded="true"] .arrow-submenu {
-    transform: rotate(90deg);
-}
-
-.submenu,
-ul ul,
-.sidebar ul ul {
+.submenu {
     display: none;
-    padding: 4px 0 4px 38px;
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
-    margin: 2px 0 6px 0;
-    list-style: none;
+    padding: 5px 0 5px 35px !important;
+    background: rgba(0, 0, 0, 0.15) !important;
+    border-radius: 10px !important;
+    margin: 2px 0 10px 0 !important;
+    list-style: none !important;
 }
 
-.submenu.show,
-ul ul.show {
-    display: block;
-}
-
-.submenu a,
-.submenu li a,
-ul ul a,
-.sidebar ul ul a {
+.submenu a {
     display: flex !important;
-    align-items: center;
-    padding: 8px 12px;
-    color: rgba(248, 249, 250, 0.85) !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    color: rgba(255, 255, 255, 0.7) !important;
     text-decoration: none !important;
-    font-size: 13.5px;
-    border-radius: 6px;
-    margin: 1px 0;
-    transition: all 0.2s;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    border-radius: 8px !important;
+    margin: 2px 0 !important;
+    transition: all 0.2s ease !important;
 }
 
-.submenu a:hover,
-ul ul a:hover {
+.submenu a:hover {
     color: #fff !important;
     background: rgba(255, 255, 255, 0.1) !important;
+    padding-left: 15px !important;
 }
 
-.submenu a.active,
-ul ul a.active {
+.submenu a.active {
     color: #fff !important;
-    font-weight: 600;
+    font-weight: 600 !important;
     background: rgba(255, 255, 255, 0.15) !important;
+    position: relative !important;
+}
+
+.submenu a.active::before {
+    content: '' !important;
+    position: absolute !important;
+    left: 0 !important;
+    width: 4px !important;
+    height: 15px !important;
+    background: #fff !important;
+    border-radius: 2px !important;
 }
 
 /* ============================================================
-   FOOTER
+   FOOTER / LOGOUT
 ============================================================ */
 
-.sidebar-footer,
-.sidebar ul.CTAs {
-    padding: 15px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    flex-shrink: 0;
+.sidebar-footer {
+    padding: 20px 12px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-.btn-logout,
-.sidebar .logout {
+.btn-logout {
     display: flex !important;
-    align-items: center;
-    padding: 11px 12px;
-    background: rgba(255, 255, 255, 0.15) !important;
-    color: #f8f9fa !important;
-    border-radius: 10px;
+    align-items: center !important;
+    padding: 12px 15px !important;
+    background: rgba(255, 71, 87, 0.1) !important;
+    color: #ff4757 !important;
+    border-radius: 12px !important;
     text-decoration: none !important;
-    transition: all 0.2s;
-    font-size: 14.5px;
-    font-weight: 600;
-    cursor: pointer;
+    transition: all 0.3s ease !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border: 1px solid rgba(255, 71, 87, 0.2) !important;
 }
 
-.btn-logout:hover,
-.sidebar .logout:hover {
-    background: rgba(255, 50, 50, 0.85) !important;
+.btn-logout:hover {
+    background: #ff4757 !important;
     color: #fff !important;
-    transform: translateX(2px);
+    box-shadow: 0 4px 12px rgba(255, 71, 87, 0.3) !important;
 }
 
-.btn-logout i,
-.sidebar .logout i {
-    margin-right: 12px;
-    font-size: 16px;
+.btn-logout .icon-container {
     color: inherit !important;
-}
-
-/* ============================================================
-   BADGES
-============================================================ */
-
-.nav-item .badge,
-.sidebar ul li a .badge {
-    margin-left: auto;
-    background: #ff4757;
-    color: white;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 700;
-    min-width: 20px;
-    text-align: center;
-    line-height: 1.4;
-}
-
-/* ============================================================
-   SEPARADORES
-============================================================ */
-
-.sidebar .components {
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.nav-group + .nav-group {
-    margin-top: 8px;
-}
-
-/* ============================================================
-   AJUSTE DO CONTEÚDO
-============================================================ */
-
-body,
-.wrapper,
-.main-wrapper {
-    padding-left: 220px;
-}
-
-.content,
-.main-content,
-.page-content,
-.content-wrapper {
-    margin-left: 0 !important;
 }
 
 /* ============================================================
@@ -379,90 +277,21 @@ body,
 ============================================================ */
 
 @media (max-width: 768px) {
+
     .sidebar,
     .sidebar-container {
-        transform: translateX(-220px);
-        width: 220px !important;
+        transform: translateX(-220px) !important;
+        transition: transform 0.3s ease !important;
     }
-    
+
     .sidebar.active,
     .sidebar-container.active {
-        transform: translateX(0);
-    }
-    
-    body,
-    .wrapper,
-    .main-wrapper {
-        padding-left: 0;
+        transform: translateX(0) !important;
     }
 }
 
-/* ============================================================
-   RESET DE CONFLITOS
-============================================================ */
-
+/* Reset Global para Sidebar */
 .sidebar *,
-.sidebar *::before,
-.sidebar *::after {
-    box-sizing: border-box;
-}
-
-.sidebar ul {
-    padding: 0;
-    margin: 0;
-    list-style: none;
-}
-
-.sidebar ul li {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.sidebar a {
-    color: inherit;
-    text-decoration: none;
-}
-
-/* ============================================================
-   IMPRESSÃO
-============================================================ */
-
-@media print {
-    .sidebar,
-    .sidebar-container {
-        display: none !important;
-    }
-    
-    body,
-    .wrapper,
-    .main-wrapper {
-        padding-left: 0 !important;
-    }
-}
-
-/* ============================================================
-   ESTADOS ESPECIAIS
-============================================================ */
-
-.sidebar.loading {
-    pointer-events: none;
-    opacity: 0.6;
-}
-
-/* Desabilita seleção de texto no menu */
-.sidebar {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
-
-/* Permite seleção nos textos do menu */
-.link-text,
-.logo-text {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
+.sidebar-container * {
+    box-sizing: border-box !important;
 }

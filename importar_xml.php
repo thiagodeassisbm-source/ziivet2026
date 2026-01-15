@@ -7,11 +7,14 @@ error_reporting(E_ALL);
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 $id_admin = $_SESSION['id_admin'] ?? 1;
+
+// Verificação de segurança: Apenas administradores podem realizar importações manuais
+if (!temPermissao('usuarios', 'listar')) {
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Acesso negado: Apenas administradores podem realizar esta operação.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 header('Content-Type: application/json');
 

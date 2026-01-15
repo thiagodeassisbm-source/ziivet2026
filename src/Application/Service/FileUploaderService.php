@@ -73,9 +73,15 @@ class FileUploaderService
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/gif' => 'gif',
+            'image/webp' => 'webp',
             'application/pdf' => 'pdf',
             'application/zip' => 'zip',
-            'text/plain' => 'txt'
+            'text/plain' => 'txt',
+            'text/csv' => 'csv',
+            'application/vnd.ms-excel' => 'csv',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+            'application/x-pkcs12' => 'pfx',
+            'application/octet-stream' => 'bin'
         ];
 
         return $map[$mimeType] ?? 'bin';

@@ -32,77 +32,155 @@ try {
 <head>
     <meta charset="UTF-8">
     <title><?= $titulo_pagina ?> | ZiipVet</title>
-    <base href="https://www.lepetboutique.com.br/app/">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- FONTES E ICONES -->
+    <link href="https://fonts.googleapis.com/css2?family=Exo:wght@300;400;500;600;700;800&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS CENTRALIZADO -->
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/menu.css">
+    <link rel="stylesheet" href="../css/header.css">
+    <link rel="stylesheet" href="../css/formularios.css">
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-    .faixa-superior { width: 100% !important; margin: 0 !important; border-radius: 0 0 0 30px !important; }
         :root { 
-            --fundo: #ecf0f5; --primaria: #1c329f; --borda: #d2d6de;
-            --sidebar-collapsed: 75px; --sidebar-expanded: 260px; --header-height: 80px;
-            --ia-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --ia-gradient: linear-gradient(135deg, #131c71 0%, #622599 100%);
+            --sidebar-width: 220px;
         }
 
-        /* Fonte Global Source Sans Pro */
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Source Sans Pro', sans-serif; }
-        body { background-color: var(--fundo); color: #333; font-weight: 400; }
+        body { font-family: 'Source Sans Pro', sans-serif; background-color: #f4f6f9; }
+        h1, h2, h3, .form-title { font-family: 'Exo', sans-serif; }
 
-        /* Pesos de Fonte */
-        h1, h2, h3, h4, strong, .card-header, .diag-title { font-weight: 600 !important; }
+        /* Ajustes de Layout para garantir enquadramento */
+        .main-content { 
+            margin-left: var(--sidebar-width); 
+            padding: calc(var(--header-height) + 30px) 30px 40px; 
+            width: auto;
+        }
 
-        /* Estrutura de Layout */
-        aside.sidebar-container { position: fixed; left: 0; top: 0; height: 100vh; width: var(--sidebar-collapsed); z-index: 1000; background: #fff; transition: width 0.4s; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
-        aside.sidebar-container:hover { width: var(--sidebar-expanded); }
-        header.top-header { position: fixed; top: 0; left: var(--sidebar-collapsed); right: 0; height: var(--header-height); z-index: 900; background: #fff; transition: left 0.4s; }
-        aside.sidebar-container:hover ~ header.top-header { left: var(--sidebar-expanded); }
-        main.main-content { margin-left: var(--sidebar-collapsed); padding: calc(var(--header-height) + 25px) 25px 40px; transition: margin-left 0.4s; }
-        aside.sidebar-container:hover ~ main.main-content { margin-left: var(--sidebar-expanded); }
-
-        .page-header { background: var(--ia-gradient); border-radius: 16px; padding: 25px; color: #fff; margin-bottom: 25px; display: flex; align-items: center; gap: 20px; }
+        .page-header-standard { 
+            background: var(--ia-gradient); 
+            border-radius: 12px; 
+            padding: 30px; 
+            color: #fff; 
+            margin-bottom: 30px; 
+            display: flex; 
+            align-items: center; 
+            gap: 20px;
+            box-shadow: 0 4px 15px rgba(19, 28, 113, 0.2);
+        }
         
-        .card-diagnostico { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 6px solid #764ba2; transition: 0.3s; }
-        .card-diagnostico:hover { transform: translateX(5px); }
+        .card-diagnostico { 
+            background: #fff; 
+            border-radius: 12px; 
+            padding: 25px; 
+            margin-bottom: 25px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+            border-left: 6px solid #622599; 
+        }
 
-        .diag-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-        .diag-title { color: var(--primaria); font-size: 18px; display: flex; align-items: center; gap: 10px; }
-        .diag-meta { font-size: 17px; color: #777; margin-top: 5px; }
-        
-        .badge-pet { background: #eef1ff; color: var(--primaria); padding: 4px 10px; border-radius: 20px; font-size: 17px; font-weight: 600; text-transform: uppercase; }
+        .diag-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+            border-bottom: 1px solid #f0f0f0; 
+            padding-bottom: 15px; 
+            margin-bottom: 20px; 
+        }
 
-        .diag-content { font-size: 17px; line-height: 1.6; color: #444; max-height: 80px; overflow: hidden; position: relative; transition: max-height 0.5s ease; }
-        .diag-content.expanded { max-height: 2000px; }
+        .diag-title { 
+            color: #131c71; 
+            font-size: 18px; 
+            font-weight: 700;
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+        }
+
+        .badge-pet { 
+            background: #f0f2ff; 
+            color: #131c71; 
+            padding: 4px 12px; 
+            border-radius: 6px; 
+            font-size: 12px; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+        }
+
+        .diag-content { 
+            font-size: 15px; 
+            line-height: 1.7; 
+            color: #444; 
+            max-height: 100px; 
+            overflow: hidden; 
+            transition: max-height 0.4s ease-out; 
+        }
+
+        .diag-content.expanded { max-height: 5000px; }
         
-        .btn-expandir { color: #764ba2; cursor: pointer; font-weight: 600; font-size: 17px; margin-top: 15px; display: flex; align-items: center; gap: 5px; }
-        
-        .no-data { text-align: center; padding: 80px 20px; color: #999; background: #fff; border-radius: 12px; }
-        .btn-delete { background: none; border: none; color: #dc3545; cursor: pointer; padding: 5px; opacity: 0.6; transition: 0.2s; }
-        .btn-delete:hover { opacity: 1; transform: scale(1.1); }
+        .btn-expandir { 
+            color: #622599; 
+            cursor: pointer; 
+            font-weight: 700; 
+            font-size: 14px; 
+            margin-top: 15px; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f8f7ff;
+            border-radius: 8px;
+        }
+
+        .btn-delete { 
+            background: #fff5f5; 
+            border: 1px solid #ffe3e3; 
+            color: #ff4757; 
+            cursor: pointer; 
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sintomas-box {
+            background: #f9f9ff; 
+            border-radius: 10px; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border: 1px solid #edeefa;
+        }
     </style>
 </head>
-<body>
+<body class="hold-transition sidebar-mini">
 
-    <aside class="sidebar-container"><?php include '../menu/menulateral.php'; ?></aside>
-    <header class="top-header"><?php include '../menu/faixa.php'; ?></header>
+    <aside class="sidebar-container">
+        <?php include '../menu/menulateral.php'; ?>
+    </aside>
+
+    <header class="top-header">
+        <?php include '../menu/faixa.php'; ?>
+    </header>
 
     <main class="main-content">
-        <div class="page-header">
-            <i class="fas fa-microchip fa-2x"></i>
+        <div class="page-header-standard">
+            <i class="fas fa-robot fa-3x"></i>
             <div>
-                <h1>Histórico de Diagnósticos IA</h1>
-                <p>Consulte aqui todas as análises inteligentes geradas para seus pacientes.</p>
+                <h1 style="font-weight: 700; margin-bottom: 5px;"><?= $titulo_pagina ?></h1>
+                <p style="opacity: 0.9;">Consulte aqui todas as análises inteligentes geradas para seus pacientes pelo Diagnóstico IA.</p>
             </div>
         </div>
 
         <?php if (empty($diagnosticos)): ?>
             <div class="no-data">
-                <i class="fas fa-comment-slash fa-4x" style="margin-bottom: 20px; opacity: 0.2;"></i>
-                <h3>Nenhum diagnóstico salvo</h3>
-                <p>As análises aparecerão aqui após serem salvas no formulário de Diagnóstico IA.</p>
+                <i class="fas fa-comment-slash fa-4x" style="margin-bottom: 25px; opacity: 0.2;"></i>
+                <h3 style="color: #444; font-weight: 700;">Nenhum diagnóstico registrado</h3>
+                <p>As análises aparecerão aqui após serem concluídas no Console de Atendimento.</p>
             </div>
         <?php else: ?>
             <?php foreach ($diagnosticos as $d): ?>
@@ -110,12 +188,12 @@ try {
                     <div class="diag-header">
                         <div>
                             <div class="diag-title">
-                                <i class="fas fa-paw"></i> <?= htmlspecialchars($d['nome_paciente']) ?> 
-                                <span class="badge-pet"><?= htmlspecialchars($d['especie']) ?> (<?= htmlspecialchars($d['raca']) ?>)</span>
+                                <i class="fas fa-dog"></i> <?= htmlspecialchars($d['nome_paciente']) ?> 
+                                <span class="badge-pet"><?= htmlspecialchars($d['especie']) ?> | <?= htmlspecialchars($d['raca']) ?></span>
                             </div>
                             <div class="diag-meta">
-                                <strong>Tutor:</strong> <?= htmlspecialchars($d['nome_tutor']) ?> | 
-                                <i class="far fa-calendar-alt"></i> <?= date('d/m/Y H:i', strtotime($d['data_atendimento'])) ?>
+                                <span><i class="fas fa-user-circle"></i> <strong>Tutor:</strong> <?= htmlspecialchars($d['nome_tutor']) ?></span>
+                                <span><i class="far fa-calendar-alt"></i> <?= date('d/m/Y H:i', strtotime($d['data_atendimento'])) ?></span>
                             </div>
                         </div>
                         <button onclick="excluirDiagnostico(<?= $d['id'] ?>)" class="btn-delete" title="Excluir Diagnóstico">
@@ -124,9 +202,11 @@ try {
                     </div>
                     
                     <div class="diag-content" id="content-<?= $d['id'] ?>">
-                        <div style="background: #fcfaff; border-radius: 8px; padding: 10px; margin-bottom: 10px; border-left: 3px solid #764ba2;">
-                            <small><strong>Sintomas Analisados:</strong></small><br>
-                            <?= htmlspecialchars($d['resumo']) ?>
+                        <div class="sintomas-box">
+                            <small style="color: #622599; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Sintomas Analisados:</small>
+                            <div style="margin-top: 5px; font-weight: 600; color: #444;">
+                                <?= htmlspecialchars($d['resumo']) ?>
+                            </div>
                         </div>
                         <div class="texto-ia">
                             <?= $d['descricao'] ?>

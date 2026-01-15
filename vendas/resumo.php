@@ -83,50 +83,34 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
             overflow-x: hidden;
         }
 
-        /* Estilos mínimos para o container do menu */
+        /* Estilos mínimos para o container do menu - FIXO 220PX */
         aside.sidebar-container { 
             position: fixed; 
             left: 0; 
             top: 0; 
             height: 100vh; 
-            width: var(--sidebar-collapsed); 
+            width: 220px; 
             z-index: 1000; 
-            transition: width var(--transition); 
         }
         
-        aside.sidebar-container:hover { 
-            width: var(--sidebar-expanded); 
-        }
-        
-        /* Header */
+        /* Header - FIXO 220PX */
         header.top-header { 
             position: fixed; 
             top: 0; 
-            left: var(--sidebar-collapsed); 
+            left: 220px; 
             right: 0; 
             height: var(--header-height); 
             z-index: 900; 
-            transition: left var(--transition); 
             background: #fff; 
             border-bottom: 1px solid #eee; 
             margin: 0 !important; 
         }
-        
-        aside.sidebar-container:hover ~ header.top-header { 
-            left: var(--sidebar-expanded); 
-        }
 
-        /* Main content */
+        /* Main content - FIXO 220PX */
         main.main-content { 
-            margin-left: var(--sidebar-collapsed); 
+            margin-left: 220px; 
             padding: calc(var(--header-height) + 30px) 25px 30px 25px;
-            transition: margin-left var(--transition);
-            width: calc(100% - var(--sidebar-collapsed));
-        }
-        
-        aside.sidebar-container:hover ~ main.main-content { 
-            margin-left: var(--sidebar-expanded); 
-            width: calc(100% - var(--sidebar-expanded));
+            width: auto;
         }
 
         .page-header-row {

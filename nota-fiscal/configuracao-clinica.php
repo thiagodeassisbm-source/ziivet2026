@@ -8,6 +8,9 @@
  */
 require_once '../auth.php';
 require_once '../config/configuracoes.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+
+use App\Application\Service\FileUploaderService;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -65,12 +68,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cnpj'])) {
 // 2. CERTIFICADO
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['senha_cert'])) {
     try {
-        $caminho_final = "";
+        // Upload de Certificado via Serviço Seguro
         if (!empty($_FILES['cert_file']['name'])) {
-            $uploaddir = '../uploads/certificados/';
-            if (!is_dir($uploaddir)) mkdir($uploaddir, 0777, true);
-            $caminho_final = $uploaddir . basename($_FILES['cert_file']['name']);
-            move_uploaded_file($_FILES['cert_file']['tmp_name'], $caminho_final);
+            try {
+                $uploader = new FileUploaderService();
+                $uploaddir = '../uploads/certificados/';
+                
+                // Tipo MIME para PFX/P12: application/x-pkcs12
+                $allowedTypes = ['application/x-pkcs12', 'application/octet-stream'];
+                
+                $fileName = $uploader->upload($_FILES['cert_file'], $uploaddir, $allowedTypes);
+                $caminho_final = $uploaddir . $fileName;
+            } catch (Exception $e) {
+                $mensagem = "Erro no upload do certificado: " . $e->getMessage();
+                $tipo_mensagem = 'error';
+                throw $e;
+            }
         }
 
         $sql = "REPLACE INTO config_certificados (id, email_responsavel, senha_certificado, caminho_arquivo) VALUES (1, :email, :senha, :path)";

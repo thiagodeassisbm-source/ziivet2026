@@ -1,5 +1,5 @@
 <style>
-.faixa-superior { width: 100% !important; margin: 0 !important; border-radius: 0 0 0 30px !important; }
+.faixa-superior { width: 100% !important; margin: 0 !important; border-radius: 0 !important; }
     :root { 
         --fundo: #ecf0f5; --primaria: #1c329f; --sucesso: #28a745; --info: #17a2b8;
         --warning: #ffc107; --danger: #dc3545; --borda: #d2d6de;
@@ -14,22 +14,18 @@
     }
     
     aside.sidebar-container { 
-        position: fixed; left: 0; top: 0; height: 100vh; width: var(--sidebar-collapsed); 
-        z-index: 1000; background: #fff; transition: width var(--transition); 
+        position: fixed; left: 0; top: 0; height: 100vh; width: 220px; 
+        z-index: 1000; background: #fff; 
         box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
     }
-    aside.sidebar-container:hover { width: var(--sidebar-expanded); }
     header.top-header { 
-        position: fixed; top: 0; left: var(--sidebar-collapsed); right: 0; 
-        height: var(--header-height); z-index: 900; transition: left var(--transition); margin: 0 !important;
+        position: fixed; top: 0; left: 220px; right: 0; 
+        height: var(--header-height); z-index: 900; margin: 0 !important;
     }
-    aside.sidebar-container:hover ~ header.top-header { left: var(--sidebar-expanded); }
     main.main-content { 
-        margin-left: var(--sidebar-collapsed); 
+        margin-left: 220px; 
         padding: calc(var(--header-height) + 25px) 25px 40px; 
-        transition: margin-left var(--transition); 
     }
-    aside.sidebar-container:hover ~ main.main-content { margin-left: var(--sidebar-expanded); }
     
     .console-grid { display: grid; grid-template-columns: 1fr 380px; gap: 25px; align-items: start; }
     @media (max-width: 1200px) { .console-grid { grid-template-columns: 1fr; } .sidebar-historico { display: none; } }

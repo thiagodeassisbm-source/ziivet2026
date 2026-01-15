@@ -1,10 +1,11 @@
 <?php
 /**
- * ZIIPVET - Menu Lateral (SEM CSS EMBUTIDO)
- * Versão: 2.0.0 - CSS Centralizado
- * CSS está em: css/menu.css
+ * ZIIPVET - Menu Lateral Standardizado
+ * Versão: 3.0.0 - Design Premium & Bulletproof
  */
 $currentPage = basename($_SERVER['PHP_SELF']);
+$currentDir = dirname($_SERVER['PHP_SELF']);
+$isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
 ?>
 
 <div class="sidebar">
@@ -15,130 +16,139 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </div>
         <div class="logo-text">
             <strong>ZIIPVET</strong>
-            <span class="version">v2.2.0</span>
+            <span class="version">PLATFORM v3.0</span>
         </div>
     </div>
 
     <nav class="sidebar-nav">
         
-        <a href="dashboard_principal.php" class="nav-item <?= $currentPage == 'dashboard_principal.php' ? 'active' : '' ?>">
+        <!-- INÍCIO / DASHBOARD -->
+        <a href="<?= URL_BASE ?>dashboard_principal.php" class="nav-item <?= $currentPage == 'dashboard_principal.php' ? 'active' : '' ?>">
             <div class="icon-container"><i class="fas fa-home"></i></div>
             <span class="link-text">Início</span>
         </a>
 
-        <a href="dashboard.php" class="nav-item <?= $currentPage == 'dashboard.php' ? 'active' : '' ?>">
-            <div class="icon-container"><i class="fas fa-th-large"></i></div>
+        <a href="<?= URL_BASE ?>dashboard.php" class="nav-item <?= $currentPage == 'dashboard.php' ? 'active' : '' ?>">
+            <div class="icon-container"><i class="fas fa-chart-pie"></i></div>
             <span class="link-text">Dashboard</span>
         </a>
 
+        <!-- CADASTROS BASE -->
         <a href="<?= URL_BASE ?>listar_clientes.php" class="nav-item <?= $currentPage == 'listar_clientes.php' ? 'active' : '' ?>">
-            <div class="icon-container"><i class="fas fa-user"></i></div>
+            <div class="icon-container"><i class="fas fa-user-friends"></i></div>
             <span class="link-text">Clientes</span>
         </a>
 
         <a href="<?= URL_BASE ?>listar_pacientes.php" class="nav-item <?= $currentPage == 'listar_pacientes.php' ? 'active' : '' ?>">
-            <div class="icon-container"><i class="fas fa-paw"></i></div>
+            <div class="icon-container"><i class="fas fa-dog"></i></div>
             <span class="link-text">Pacientes</span>
         </a>
 
+        <!-- OPERACIONAL / CONSULTAS -->
         <div class="nav-group">
-            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= in_array($currentPage, ['listar_atendimentos.php', 'atendimento.php', 'listar_patologias.php', 'patologia.php', 'realizar_consulta.php', 'listar_exames.php', 'listar_documentos.php', 'listar_vacinas.php', 'receitas.php', 'historico.php', 'listar_diagnosticos.php']) ? 'active-parent' : '' ?>">
+            <?php 
+                $consultas_pages = ['realizar_consulta.php', 'listar_diagnosticos.php'];
+                $isConsultasActive = in_array($currentPage, $consultas_pages) || $isInConsultas;
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isConsultasActive ? 'active-parent' : '' ?>">
                 <div class="icon-container"><i class="fas fa-stethoscope"></i></div>
                 <span class="link-text">Consultas</span>
                 <i class="fas fa-chevron-right arrow-submenu"></i>
             </a>
-            <div class="submenu" style="<?= in_array($currentPage, ['listar_atendimentos.php', 'atendimento.php', 'listar_patologias.php', 'patologia.php', 'realizar_consulta.php', 'listar_exames.php', 'listar_documentos.php', 'listar_vacinas.php', 'receitas.php', 'historico.php', 'listar_diagnosticos.php']) ? 'display:block' : '' ?>">
-                <a href="consultas/realizar_consulta.php" class="<?= $currentPage == 'realizar_consulta.php' ? 'active' : '' ?>">Realizar Consulta</a>
-                <a href="consultas/listar_atendimentos.php" class="<?= $currentPage == 'listar_atendimentos.php' ? 'active' : '' ?>">Atendimento</a>
-                <a href="consultas/listar_patologias.php" class="<?= $currentPage == 'listar_patologias.php' ? 'active' : '' ?>">Patologia</a>
-                <a href="consultas/listar_exames.php" class="<?= $currentPage == 'listar_exames.php' ? 'active' : '' ?>">Exames</a>
-                <a href="consultas/listar_documentos.php" class="<?= $currentPage == 'listar_documentos.php' ? 'active' : '' ?>">Documentos Modelo</a>
-                <a href="consultas/listar_vacinas.php" class="<?= $currentPage == 'listar_vacinas.php' ? 'active' : '' ?>">Vacinas</a>
-                <a href="consultas/receitas.php" class="<?= $currentPage == 'receitas.php' ? 'active' : '' ?>">Receitas</a>
-                <a href="consultas/historico.php" class="<?= $currentPage == 'historico.php' ? 'active' : '' ?>">Histórico Geral</a>
-                <a href="consultas/listar_diagnosticos.php" class="<?= $currentPage == 'listar_diagnosticos.php' ? 'active' : '' ?>">Diagnóstico IA</a>
+            <div class="submenu" style="<?= $isConsultasActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>consultas/realizar_consulta.php" class="<?= $currentPage == 'realizar_consulta.php' ? 'active' : '' ?>">Realizar Consulta</a>
+                <a href="<?= URL_BASE ?>consultas/listar_diagnosticos.php" class="<?= $currentPage == 'listar_diagnosticos.php' ? 'active' : '' ?>">Diagnóstico IA</a>
             </div>
         </div>
 
         <a href="<?= URL_BASE ?>listar_agendas.php" class="nav-item <?= $currentPage == 'listar_agendas.php' ? 'active' : '' ?>">
-            <div class="icon-container"><i class="fas fa-calendar-alt"></i></div>
+            <div class="icon-container"><i class="fas fa-calendar-check"></i></div>
             <span class="link-text">Agenda</span>
         </a>
 
+        <!-- ESTOQUE E PRODUTOS -->
         <div class="nav-group">
-            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= in_array($currentPage, ['listar_produtos.php', 'produtos.php', 'listar_compras.php', 'listar_fornecedores.php', 'estoque.php']) ? 'active-parent' : '' ?>">
-                <div class="icon-container"><i class="fas fa-box-open"></i></div>
-                <span class="link-text">Produtos e Serviços</span>
+            <?php 
+                $produtos_pages = ['listar_produtos.php', 'produtos.php', 'listar_compras.php', 'listar_fornecedores.php', 'estoque.php'];
+                $isProdutosActive = in_array($currentPage, $produtos_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isProdutosActive ? 'active-parent' : '' ?>">
+                <div class="icon-container"><i class="fas fa-boxes"></i></div>
+                <span class="link-text">Produtos e Estoque</span>
                 <i class="fas fa-chevron-right arrow-submenu"></i>
             </a>
-            <div class="submenu" style="<?= in_array($currentPage, ['listar_produtos.php', 'produtos.php', 'listar_compras.php', 'listar_fornecedores.php', 'estoque.php']) ? 'display:block' : '' ?>">
-                <a href="<?= URL_BASE ?>listar_produtos.php" class="<?= $currentPage == 'listar_produtos.php' ? 'active' : '' ?>">Cadastrar</a>
-                <a href="<?= URL_BASE ?>listar_compras.php" class="<?= $currentPage == 'listar_compras.php' ? 'active' : '' ?>">Compras</a>
+            <div class="submenu" style="<?= $isProdutosActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>listar_produtos.php" class="<?= ($currentPage == 'listar_produtos.php' || $currentPage == 'produtos.php') ? 'active' : '' ?>">Catálogo</a>
+                <a href="<?= URL_BASE ?>listar_compras.php" class="<?= $currentPage == 'listar_compras.php' ? 'active' : '' ?>">Entradas / Compras</a>
                 <a href="<?= URL_BASE ?>listar_fornecedores.php" class="<?= $currentPage == 'listar_fornecedores.php' ? 'active' : '' ?>">Fornecedores</a>
-                <a href="<?= URL_BASE ?>estoque.php" class="<?= $currentPage == 'estoque.php' ? 'active' : '' ?>">Estoque</a>
+                <a href="<?= URL_BASE ?>estoque.php" class="<?= $currentPage == 'estoque.php' ? 'active' : '' ?>">Posição de Estoque</a>
             </div>
         </div>
 
+        <!-- COMERCIAL / VENDAS -->
         <div class="nav-group">
-            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= in_array($currentPage, ['vendas.php', 'saldo-clientes.php', 'produtividade.php']) ? 'active-parent' : '' ?>">
-                <div class="icon-container"><i class="fas fa-tag"></i></div>
-                <span class="link-text">Vendas</span>
+            <?php 
+                $vendas_pages = ['vendas.php', 'saldo-clientes.php', 'produtividade.php', 'formas-recebimento.php'];
+                $isVendasActive = in_array($currentPage, $vendas_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isVendasActive ? 'active-parent' : '' ?>">
+                <div class="icon-container"><i class="fas fa-cash-register"></i></div>
+                <span class="link-text">Vendas & PDV</span>
                 <i class="fas fa-chevron-right arrow-submenu"></i>
             </a>
-            <div class="submenu" style="<?= in_array($currentPage, ['vendas.php', 'saldo-clientes.php', 'produtividade.php']) ? 'display:block' : '' ?>">
+            <div class="submenu" style="<?= $isVendasActive ? 'display:block' : '' ?>">
                 <a href="<?= URL_BASE ?>vendas.php" class="<?= $currentPage == 'vendas.php' ? 'active' : '' ?>">Ponto de Venda</a>
-                <a href="<?= URL_BASE ?>saldo-clientes.php" class="<?= $currentPage == 'saldo-clientes.php' ? 'active' : '' ?>">Saldo do Cliente</a>
-                 <a href="<?= URL_BASE ?>vendas/formas-recebimento.php" class="<?= $currentPage == 'vendas/formas-recebimento.php' ? 'active' : '' ?>">Forma de Recebimentos</a>
+                <a href="<?= URL_BASE ?>saldo-clientes.php" class="<?= $currentPage == 'saldo-clientes.php' ? 'active' : '' ?>">Créditos Clientes</a>
+                <a href="<?= URL_BASE ?>vendas/formas-recebimento.php" class="<?= $currentPage == 'formas-recebimento.php' ? 'active' : '' ?>">Formas de Pagto</a>
                 <a href="<?= URL_BASE ?>produtividade.php" class="<?= $currentPage == 'produtividade.php' ? 'active' : '' ?>">Produtividade</a>
             </div>
         </div>
 
+        <!-- FINANCEIRO -->
         <div class="nav-group">
-            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= in_array($currentPage, ['lancamentos.php', 'movimentacao_caixa.php', 'abrir_caixa.php', 'listar_contas.php', 'contas.php', 'listar_contas_financeiras.php', 'contas_financeiras.php']) ? 'active-parent' : '' ?>">
+            <?php 
+                $financeiro_pages = ['lancamentos.php', 'movimentacao_caixa.php', 'abrir_caixa.php', 'listar_contas.php', 'contas.php', 'listar_contas_financeiras.php', 'contas_financeiras.php'];
+                $isFinanceiroActive = in_array($currentPage, $financeiro_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isFinanceiroActive ? 'active-parent' : '' ?>">
                 <div class="icon-container"><i class="fas fa-file-invoice-dollar"></i></div>
                 <span class="link-text">Financeiro</span>
                 <i class="fas fa-chevron-right arrow-submenu"></i>
             </a>
-            <div class="submenu" style="<?= in_array($currentPage, ['lancamentos.php', 'movimentacao_caixa.php', 'abrir_caixa.php', 'listar_contas.php', 'contas.php', 'listar_contas_financeiras.php', 'contas_financeiras.php']) ? 'display:block' : '' ?>">
-                <a href="<?= URL_BASE ?>lancamentos.php" class="<?= in_array($currentPage, ['lancamentos.php', 'abrir_caixa.php']) ? 'active' : '' ?>">Lançamentos</a>
-                <a href="<?= URL_BASE ?>vendas/movimentacao_caixa.php" class="<?= in_array($currentPage, ['movimentacao_caixa.php', 'abrir_caixa.php']) ? 'active' : '' ?>">Movimentação Caixa</a>
-                <a href="<?= URL_BASE ?>listar_contas.php" class="<?= ($currentPage == 'listar_contas.php' || $currentPage == 'contas.php') ? 'active' : '' ?>">Pagar Contas</a>
-                <a href="<?= URL_BASE ?>listar_contas_financeiras.php" class="<?= ($currentPage == 'listar_contas_financeiras.php' || $currentPage == 'contas_financeiras.php') ? 'active' : '' ?>">Contas e Cartões</a>
+            <div class="submenu" style="<?= $isFinanceiroActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>lancamentos.php" class="<?= in_array($currentPage, ['lancamentos.php', 'abrir_caixa.php']) ? 'active' : '' ?>">Fluxo de Caixa</a>
+                <a href="<?= URL_BASE ?>vendas/movimentacao_caixa.php" class="<?= in_array($currentPage, ['movimentacao_caixa.php']) ? 'active' : '' ?>">Movimentação PDV</a>
+                <a href="<?= URL_BASE ?>listar_contas.php" class="<?= ($currentPage == 'listar_contas.php' || $currentPage == 'contas.php') ? 'active' : '' ?>">Contas a Pagar</a>
+                <a href="<?= URL_BASE ?>listar_contas_financeiras.php" class="<?= ($currentPage == 'listar_contas_financeiras.php' || $currentPage == 'contas_financeiras.php') ? 'active' : '' ?>">Bancos e Cartões</a>
             </div>
         </div>
 
         <a href="<?= URL_BASE ?>internacao.php" class="nav-item <?= $currentPage == 'internacao.php' ? 'active' : '' ?>">
-            <div class="icon-container"><i class="fas fa-star-of-life"></i></div>
+            <div class="icon-container"><i class="fas fa-clinic-medical"></i></div>
             <span class="link-text">Internação</span>
         </a>
 
-        <a href="banho_tosa.php" class="nav-item <?= $currentPage == 'banho_tosa.php' ? 'active' : '' ?>">
+        <a href="<?= URL_BASE ?>banho_tosa.php" class="nav-item <?= $currentPage == 'banho_tosa.php' ? 'active' : '' ?>">
             <div class="icon-container"><i class="fas fa-cut"></i></div>
-            <span class="link-text">Banho e Tosa</span>
+            <span class="link-text">Pet Shop / Estética</span>
         </a>
 
+        <!-- CONFIGURAÇÕES -->
         <div class="nav-group">
-            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= in_array($currentPage, ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'configuracao-clinica.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php']) ? 'active-parent' : '' ?>">
-                <div class="icon-container"><i class="fas fa-cog"></i></div>
+            <?php 
+                $config_pages = ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'configuracao-clinica.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php'];
+                $isConfigActive = in_array($currentPage, $config_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isConfigActive ? 'active-parent' : '' ?>">
+                <div class="icon-container"><i class="fas fa-user-cog"></i></div>
                 <span class="link-text">Configurações</span>
                 <i class="fas fa-chevron-right arrow-submenu"></i>
             </a>
-            <div class="submenu" style="<?= in_array($currentPage, ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'configuracao-clinica.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php']) ? 'display:block' : '' ?>">
-                <a href="<?= URL_BASE ?>listar_usuarios.php" class="<?= ($currentPage == 'listar_usuarios.php' || $currentPage == 'usuarios.php') ? 'active' : '' ?>">Usuários</a>
-                
-                <div class="nav-subgroup">
-                    <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $currentPage == 'configuracao-clinica.php' ? 'active-inner' : '' ?>" style="font-size: 13px; padding-left: 10px;">
-                        <i class="fas fa-file-invoice" style="margin-right: 8px; font-size: 12px;"></i> 
-                        <span class="link-text">Nota Fiscal</span>
-                        <i class="fas fa-chevron-right arrow-submenu" style="font-size: 10px;"></i>
-                    </a>
-                    <div class="submenu sub-level-2" style="<?= $currentPage == 'configuracao-clinica.php' ? 'display:block' : '' ?>">
-                        <a href="<?= URL_BASE ?>nota-fiscal/configuracao-clinica.php" class="<?= $currentPage == 'configuracao-clinica.php' ? 'active' : '' ?>">Dados da Empresa</a>
-                    </div>
-                </div>
-
-                <a href="<?= URL_BASE ?>app/minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Minha Empresa</a>
-                <a href="<?= URL_BASE ?>gerenciar_numeros_autorizados.php" class="<?= $currentPage == 'gerenciar_numeros_autorizados.php' ? 'active' : '' ?>">Gerenciar Números Whatsapp</a>
+            <div class="submenu" style="<?= $isConfigActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>listar_usuarios.php" class="<?= ($currentPage == 'listar_usuarios.php' || $currentPage == 'usuarios.php') ? 'active' : '' ?>">Equipe e Permissões</a>
+                <a href="<?= URL_BASE ?>app/minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Dados do Perfil</a>
+                <a href="<?= URL_BASE ?>nota-fiscal/configuracao-clinica.php" class="<?= $currentPage == 'configuracao-clinica.php' ? 'active' : '' ?>">Nota Fiscal (NFe)</a>
+                <a href="<?= URL_BASE ?>gerenciar_numeros_autorizados.php" class="<?= $currentPage == 'gerenciar_numeros_autorizados.php' ? 'active' : '' ?>">WhatsApp API</a>
             </div>
         </div>
 
@@ -146,28 +156,31 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 
     <div class="sidebar-footer">
         <a href="<?= URL_BASE ?>sair.php" class="btn-logout">
-            <div class="icon-container"><i class="fas fa-sign-out-alt"></i></div>
-            <span class="link-text">Sair do Sistema</span>
+            <div class="icon-container"><i class="fas fa-power-off"></i></div>
+            <span class="link-text">Sair da Plataforma</span>
         </a>
     </div>
 
 </div>
 
 <script>
+/**
+ * Alterna a visibilidade dos submenus com animação suave via JS
+ */
 function toggleSubmenu(element) {
     const submenu = element.nextElementSibling;
-    const arrow = element.querySelector('.arrow-submenu');
+    const isVisible = submenu.style.display === 'block';
     
-    if (submenu && submenu.classList.contains('submenu')) {
-        if (submenu.style.display === 'block') {
-            submenu.style.display = 'none';
-            if(arrow) arrow.style.transform = 'rotate(0deg)';
-            element.classList.remove('active-parent');
-        } else {
-            submenu.style.display = 'block';
-            if(arrow) arrow.style.transform = 'rotate(90deg)';
-            element.classList.add('active-parent');
-        }
+    // Fechar outros submenus abertos (Opcional, mas mantém limpo)
+    // document.querySelectorAll('.submenu').forEach(s => s.style.display = 'none');
+    // document.querySelectorAll('.has-submenu').forEach(i => i.classList.remove('active-parent'));
+
+    if (isVisible) {
+        submenu.style.display = 'none';
+        element.classList.remove('active-parent');
+    } else {
+        submenu.style.display = 'block';
+        element.classList.add('active-parent');
     }
 }
 </script>
