@@ -1,0 +1,551 @@
+/**
+ * SISTEMA ZIIP - CSS PARA FAIXA SUPERIOR / HEADER
+ * Arquivo: css/header.css
+ * Versão: 3.0.0 - BADGE CORRIGIDO
+ * Descrição: Estilos centralizados para o header/faixa superior
+ * Cor padrão: Roxo (#622599) conforme identidade visual
+ */
+
+/* ============================================================
+   VARIÁVEIS ESPECÍFICAS DO HEADER
+============================================================ */
+:root {
+    --header-height: 80px;
+    --header-bg: #131c71; /* Alterado de Roxo para Azul */
+    --header-text: #ffffff;
+    --header-shadow: 0 4px 20px rgba(19, 28, 113, 0.2); /* Sombra ajustada para o tom azul */
+}
+
+/* ============================================================
+   ESTRUTURA BASE DO HEADER - LARGURA MANTIDA
+============================================================ */
+.faixa-superior,
+.top-header,
+header.navbar {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+    position: fixed;
+    top: 0;
+    left: 220px; /* MENU FIXO */
+    right: 0;
+    z-index: 900;
+    box-shadow: var(--header-shadow);
+    transition: left var(--transition-speed, 0.4s);
+    border-bottom-left-radius: 30px;
+}
+
+/* Header sem sidebar */
+.no-sidebar .faixa-superior,
+.no-sidebar .top-header {
+    left: 0;
+    border-bottom-left-radius: 0;
+}
+
+/* ============================================================
+   BREADCRUMB / TÍTULO - ESCONDIDO
+============================================================ */
+.breadcrumb-area {
+    display: none !important;
+}
+
+.breadcrumb-area .text-muted {
+    display: none !important;
+}
+
+.page-title-header {
+    display: none !important;
+}
+
+/* ============================================================
+   BUSCA GLOBAL
+============================================================ */
+.faixa-busca-global,
+#container-busca-global {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 20px;
+    max-width: 500px;
+}
+
+.search-input-wrapper {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.search-input-wrapper:hover,
+.search-input-wrapper:focus-within {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.search-input-wrapper i {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 16px;
+}
+
+.search-input-wrapper input {
+    background: none;
+    border: none;
+    color: white;
+    margin-left: 12px;
+    width: 100%;
+    outline: none;
+    font-size: 14px;
+    font-family: 'Source Sans Pro', sans-serif;
+}
+
+.search-input-wrapper input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.kb-shortcut {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-left: 10px;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-weight: 600;
+}
+
+/* ============================================================
+   VISUALIZADOR DE ÁUDIO (RECONHECIMENTO DE VOZ)
+============================================================ */
+#audio-visualizer-container {
+    display: none;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    padding: 0 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+#audio-waves {
+    width: 250px;
+    height: 35px;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+}
+
+#status-voz {
+    color: #fff;
+    margin-left: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Source Sans Pro', sans-serif;
+    animation: blink 2s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============================================================
+   AÇÕES DO HEADER
+============================================================ */
+.faixa-acoes {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+}
+
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.action-buttons i {
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+    color: var(--header-text);
+}
+
+.action-buttons i:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+/* ============================================================
+   BOTÃO DO MICROFONE
+============================================================ */
+.mic-icon-wrapper {
+    position: relative;
+}
+
+.btn-mic-global {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 50%;
+    font-size: 16px !important;
+    transition: all 0.3s ease;
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.btn-mic-global:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Estado: Gravando Ativo (Vermelho) */
+.btn-mic-global.active {
+    background: #ff4757 !important;
+    animation: pulse-mic 1.5s infinite;
+    opacity: 1 !important;
+}
+
+/* Estado: Aguardando clique no campo (Laranja) */
+.btn-mic-global.listening {
+    background: #ffa502 !important;
+    animation: pulse-listening 2s infinite;
+    opacity: 1 !important;
+}
+
+@keyframes pulse-mic {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 71, 87, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+        transform: scale(1);
+    }
+}
+
+@keyframes pulse-listening {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 165, 2, 0.7);
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 165, 2, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 165, 2, 0);
+        transform: scale(1);
+    }
+}
+
+/* ============================================================
+   NOTIFICAÇÕES - BADGE PEQUENO (CORRIGIDO)
+============================================================ */
+.notificacao-icon {
+    position: relative !important;
+}
+
+/* Badge - Bolinha vermelha pequena */
+.notificacao-icon .badge,
+header .notificacao-icon .badge,
+.faixa-superior .notificacao-icon .badge,
+.top-header .notificacao-icon .badge {
+    position: absolute !important;
+    top: -2px !important;
+    right: -2px !important;
+    background: #ff4757 !important;
+    width: 8px !important;
+    height: 8px !important;
+    min-width: 8px !important;
+    min-height: 8px !important;
+    max-width: 8px !important;
+    max-height: 8px !important;
+    border-radius: 50% !important;
+    border: 1.5px solid #622599 !important;
+    padding: 0 !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Badge com número */
+.notificacao-icon .badge.count,
+header .notificacao-icon .badge.count,
+.faixa-superior .notificacao-icon .badge.count,
+.top-header .notificacao-icon .badge.count {
+    width: auto !important;
+    height: auto !important;
+    min-width: 12px !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 1px 3px !important;
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+}
+
+/* ============================================================
+   PERFIL DO USUÁRIO
+============================================================ */
+.usuario-perfil {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 6px 8px 6px 20px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.usuario-perfil:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.user-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.user-text strong {
+    font-size: 13px;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-weight: 700;
+    color: var(--header-text);
+}
+
+.user-text span {
+    font-size: 11px;
+    opacity: 0.8;
+    font-family: 'Source Sans Pro', sans-serif;
+    color: var(--header-text);
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.user-avatar i {
+    font-size: 24px;
+    color: var(--header-text);
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* ============================================================
+   DROPDOWN DO USUÁRIO
+============================================================ */
+.user-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    overflow: hidden;
+    display: none;
+    z-index: 1000;
+}
+
+.user-dropdown.show {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-dropdown-item {
+    padding: 12px 20px;
+    color: var(--texto-dark, #333);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.user-dropdown-item:hover {
+    background: #f5f5f5;
+    text-decoration: none;
+    color: var(--cor-principal, #622599);
+}
+
+.user-dropdown-item i {
+    font-size: 16px;
+}
+
+.user-dropdown-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 5px 0;
+}
+
+/* ============================================================
+   CAMPO COM DESTAQUE PARA VOZ
+============================================================ */
+.voice-ready-field {
+    animation: highlightField 1s infinite;
+    outline: 2px solid #ff4757 !important;
+}
+
+@keyframes highlightField {
+    0%, 100% { outline-color: #ff4757; }
+    50% { outline-color: transparent; }
+}
+
+/* ============================================================
+   RESPONSIVIDADE
+============================================================ */
+@media (max-width: 992px) {
+    .faixa-superior,
+    .top-header {
+        padding: 0 15px;
+        gap: 15px;
+    }
+    
+    .faixa-acoes {
+        gap: 15px;
+    }
+    
+    .action-buttons {
+        gap: 15px;
+    }
+    
+    .user-text {
+        display: none;
+    }
+    
+    .faixa-busca-global {
+        max-width: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .faixa-superior,
+    .top-header {
+        left: 0;
+        border-bottom-left-radius: 0;
+    }
+    
+    .faixa-busca-global {
+        display: none;
+    }
+    
+    #audio-visualizer-container {
+        padding: 0 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .faixa-superior,
+    .top-header {
+        padding: 0 10px;
+        gap: 10px;
+    }
+    
+    .action-buttons {
+        gap: 10px;
+    }
+    
+    .action-buttons i {
+        font-size: 16px;
+    }
+    
+    .usuario-perfil {
+        padding: 4px;
+        gap: 0;
+    }
+    
+    .user-avatar {
+        width: 35px;
+        height: 35px;
+    }
+}
+
+/* ============================================================
+   IMPRESSÃO
+============================================================ */
+@media print {
+    .faixa-superior,
+    .top-header,
+    header.navbar {
+        display: none !important;
+    }
+}
+
+/* ============================================================
+   SOMBRA FLUTUANTE AO SCROLL
+============================================================ */
+.faixa-superior.scrolled,
+.top-header.scrolled {
+    box-shadow: 0 4px 30px rgba(98, 37, 153, 0.3);
+}
+
+/* ============================================================
+   LOADING STATE
+============================================================ */
+.faixa-superior.loading::after,
+.top-header.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}

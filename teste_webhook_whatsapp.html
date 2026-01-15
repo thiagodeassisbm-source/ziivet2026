@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Webhook WhatsApp - ZiipVet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #25D366;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+        }
+        
+        .info-box strong {
+            color: #0369a1;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #25D366;
+            box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        
+        button {
+            width: 100%;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .resultado {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .resultado.sucesso {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+            display: block;
+        }
+        
+        .resultado.erro {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+            display: block;
+        }
+        
+        .resultado.info {
+            background: #d1ecf1;
+            border: 2px solid #bee5eb;
+            color: #0c5460;
+            display: block;
+        }
+        
+        .exemplo {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .exemplo code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Teste de Webhook WhatsApp</h1>
+        <p class="subtitle">Simulador de Mensagens para ZiipVet Financeiro</p>
+        
+        <div class="info-box">
+            <strong>ℹ️ Como funciona:</strong><br>
+            Este teste simula o envio de dados do WhatsApp para o seu webhook, exatamente como o Facebook faria em produção.
+        </div>
+        
+        <div class="exemplo">
+            <strong>💡 Exemplo de mensagem:</strong><br>
+            <code>Paguei o boleto 83 no valor de 538,63</code>
+        </div>
+        
+        <form id="formTeste">
+            <label for="webhook_url">🔗 URL do Webhook:</label>
+            <input 
+                type="url" 
+                id="webhook_url" 
+                name="webhook_url" 
+                value="https://www.lepetboutique.com.br/app/webhook_whatsapp.php"
+                required
+            >
+            
+            <label for="numero_whatsapp">📞 Número do WhatsApp (simulado):</label>
+            <input 
+                type="text" 
+                id="numero_whatsapp" 
+                name="numero_whatsapp" 
+                value="5562999999999"
+                placeholder="Ex: 5562999999999"
+                required
+            >
+            
+            <label for="mensagem">💬 Mensagem de Teste:</label>
+            <textarea 
+                id="mensagem" 
+                name="mensagem" 
+                placeholder="Ex: Paguei o boleto 83 no valor de 538,63"
+                required
+            ></textarea>
+            
+            <button type="submit" id="btnEnviar">
+                🚀 ENVIAR TESTE PARA O WEBHOOK
+            </button>
+        </form>
+        
+        <div id="resultado" class="resultado"></div>
+    </div>
+
+    <script>
+        document.getElementById('formTeste').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btnEnviar = document.getElementById('btnEnviar');
+            const resultado = document.getElementById('resultado');
+            const webhookUrl = document.getElementById('webhook_url').value;
+            const numero = document.getElementById('numero_whatsapp').value;
+            const mensagem = document.getElementById('mensagem').value;
+            
+            // Desabilitar botão e mostrar loading
+            btnEnviar.disabled = true;
+            btnEnviar.innerHTML = '<span class="loading"></span> Enviando...';
+            resultado.className = 'resultado';
+            resultado.style.display = 'none';
+            
+            // Simular o JSON que o WhatsApp envia
+            const dadosWhatsApp = {
+                "entry": [{
+                    "changes": [{
+                        "value": {
+                            "messages": [{
+                                "from": numero,
+                                "text": {
+                                    "body": mensagem
+                                }
+                            }]
+                        }
+                    }]
+                }]
+            };
+            
+            try {
+                // Enviar para o webhook
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(dadosWhatsApp)
+                });
+                
+                // Verificar se houve resposta
+                if (response.ok || response.status === 200) {
+                    resultado.className = 'resultado sucesso';
+                    resultado.innerHTML = `
+                        <strong>✅ SUCESSO!</strong><br><br>
+                        <strong>Webhook chamado com sucesso!</strong><br>
+                        Status: ${response.status}<br><br>
+                        <strong>Dados enviados:</strong><br>
+                        • Número: ${numero}<br>
+                        • Mensagem: "${mensagem}"<br><br>
+                        <em>Agora verifique se a baixa foi realizada no sistema!</em>
+                    `;
+                } else {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+                
+            } catch (error) {
+                resultado.className = 'resultado erro';
+                resultado.innerHTML = `
+                    <strong>❌ ERRO AO CHAMAR O WEBHOOK</strong><br><br>
+                    ${error.message}<br><br>
+                    <strong>Possíveis causas:</strong><br>
+                    • URL do webhook incorreta<br>
+                    • Servidor fora do ar<br>
+                    • Problema de CORS<br>
+                    • Erro no código PHP<br><br>
+                    <em>Verifique os logs do servidor para mais detalhes.</em>
+                `;
+            } finally {
+                // Reabilitar botão
+                btnEnviar.disabled = false;
+                btnEnviar.innerHTML = '🚀 ENVIAR TESTE PARA O WEBHOOK';
+            }
+        });
+    </script>
+</body>
+</html>

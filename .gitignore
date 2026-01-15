@@ -1,0 +1,36 @@
+# Dependencias Node/PHP
+node_modules/
+vendor/
+
+# Arquivos de Sistema / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs e Temporarios
+logs/
+temp/
+tmp/
+*.log
+
+# Backups de Banco de Dados (Segurança)
+*.sql
+*.zip
+*.rar
+*.gz
+
+# Scripts de Teste/Configuração Local (Não enviar para prod/git)
+setup_database.php
+import_chunked.php
+check_status.php
+check_users.php
+debug_import_usuarios.php
+force_import.php
+test_ftp.js
+ftp_check.txt
+ftp_check_v2.txt
+
+# Arquivos com Senhas (Segurança)
+deploy.js
+config/configuracoes.php

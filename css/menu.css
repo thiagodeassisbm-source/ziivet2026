@@ -1,0 +1,468 @@
+/**
+ * SISTEMA ZIIP - MENU LATERAL FIXO 220PX
+ * Versão: 7.0 FINAL COMPLETA
+ * Com formatação, ícones e espaçamento corretos
+ */
+
+/* ============================================================
+   ESTRUTURA BASE
+============================================================ */
+
+.sidebar,
+.sidebar-container {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 220px !important;
+    min-width: 220px !important;
+    max-width: 220px !important;
+    background: #131c71 !important; /* cor do fundo do menu */
+    color: #f8f9fa !important;
+    z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+    font-family: 'Source Sans Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+/* Remove hover expansion */
+.sidebar:hover,
+.sidebar-container:hover {
+    width: 220px !important;
+}
+
+/* Scrollbar customizada */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: 20px 15px;
+    min-height: 75px;
+    background: #0e1552 !important; /* Aqui muda a cor do fundo de onde fica a logo */
+    flex-shrink: 0;
+}
+
+.sidebar-header a {
+    color: #0e1552 !important; /* Aqui tambem muda a cor do fundo de onde fica a logo */
+    text-decoration: none !important;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.logo-icon {
+    min-width: 35px;
+    width: 35px;
+    height: 35px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    color: #fff !important;
+}
+
+.logo-icon i {
+    color: #fff !important;
+    font-size: 18px;
+}
+
+.logo-text {
+    margin-left: 12px;
+    display: flex !important;
+    flex-direction: column;
+    white-space: nowrap;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.logo-text strong {
+    font-size: 17px;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    color: #fff !important;
+    line-height: 1.3;
+}
+
+.logo-text .version {
+    font-size: 11px;
+    opacity: 0.8;
+    color: rgba(255, 255, 255, 0.8) !important;
+    margin-top: 2px;
+}
+
+/* ============================================================
+   NAVEGAÇÃO
+============================================================ */
+
+.sidebar-nav,
+.sidebar ul.components {
+    flex: 1;
+    padding: 15px 12px;
+    list-style: none;
+    margin: 0;
+}
+
+.nav-item,
+.sidebar ul li a {
+    display: flex !important;
+    align-items: center;
+    padding: 11px 12px;
+    color: #f8f9fa !important;
+    text-decoration: none !important;
+    border-radius: 10px;
+    margin-bottom: 4px;
+    transition: background 0.2s ease, transform 0.1s ease;
+    cursor: pointer;
+    font-size: 14.5px;
+    font-weight: 400;
+    line-height: 1.4;
+    position: relative;
+}
+
+.nav-item:hover,
+.sidebar ul li a:hover {
+    background: rgba(255, 255, 255, 0.12) !important;
+    text-decoration: none !important;
+    transform: translateX(2px);
+}
+
+.nav-item.active,
+.nav-item.active-parent,
+.sidebar ul li a.active {
+    background: #ffffff !important;
+    color: #131c71 !important; /* cor do texto selecionado */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-weight: 600;
+}
+
+.nav-item.active i,
+.nav-item.active-parent i,
+.sidebar ul li a.active i {
+    color: #131c71 !important; /* cor do icone) */
+}
+
+/* ============================================================
+   ÍCONES
+============================================================ */
+
+.icon-container,
+.nav-item .icon,
+.sidebar ul li a .icon,
+.nav-item i,
+.sidebar ul li a i {
+    min-width: 22px;
+    width: 22px;
+    display: inline-flex !important;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    color: #f8f9fa !important;
+    margin-right: 0;
+}
+
+/* Font Awesome específico */
+.nav-item i.fa,
+.nav-item i.fas,
+.nav-item i.far,
+.nav-item i.fab,
+.sidebar ul li a i.fa,
+.sidebar ul li a i.fas,
+.sidebar ul li a i.far,
+.sidebar ul li a i.fab {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   TEXTOS
+============================================================ */
+
+.link-text,
+.nav-item .text,
+.sidebar ul li a .text,
+.nav-item span:not(.icon):not(.arrow-submenu):not(.badge),
+.sidebar ul li a span:not(.icon):not(.arrow-submenu):not(.badge) {
+    margin-left: 12px !important;
+    display: inline !important;
+    white-space: nowrap;
+    opacity: 1 !important;
+    visibility: visible !important;
+    color: inherit !important;
+    font-size: 14.5px;
+    font-weight: inherit;
+    flex: 1;
+}
+
+/* ============================================================
+   SUBMENUS
+============================================================ */
+
+.arrow-submenu {
+    margin-left: auto !important;
+    padding-left: 8px;
+    font-size: 11px;
+    flex-shrink: 0;
+    display: inline-flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: transform 0.3s ease;
+    color: currentColor !important;
+}
+
+.has-submenu.active-parent .arrow-submenu,
+.has-submenu[aria-expanded="true"] .arrow-submenu {
+    transform: rotate(90deg);
+}
+
+.submenu,
+ul ul,
+.sidebar ul ul {
+    display: none;
+    padding: 4px 0 4px 38px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    margin: 2px 0 6px 0;
+    list-style: none;
+}
+
+.submenu.show,
+ul ul.show {
+    display: block;
+}
+
+.submenu a,
+.submenu li a,
+ul ul a,
+.sidebar ul ul a {
+    display: flex !important;
+    align-items: center;
+    padding: 8px 12px;
+    color: rgba(248, 249, 250, 0.85) !important;
+    text-decoration: none !important;
+    font-size: 13.5px;
+    border-radius: 6px;
+    margin: 1px 0;
+    transition: all 0.2s;
+}
+
+.submenu a:hover,
+ul ul a:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.submenu a.active,
+ul ul a.active {
+    color: #fff !important;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.sidebar-footer,
+.sidebar ul.CTAs {
+    padding: 15px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    flex-shrink: 0;
+}
+
+.btn-logout,
+.sidebar .logout {
+    display: flex !important;
+    align-items: center;
+    padding: 11px 12px;
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #f8f9fa !important;
+    border-radius: 10px;
+    text-decoration: none !important;
+    transition: all 0.2s;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-logout:hover,
+.sidebar .logout:hover {
+    background: rgba(255, 50, 50, 0.85) !important;
+    color: #fff !important;
+    transform: translateX(2px);
+}
+
+.btn-logout i,
+.sidebar .logout i {
+    margin-right: 12px;
+    font-size: 16px;
+    color: inherit !important;
+}
+
+/* ============================================================
+   BADGES
+============================================================ */
+
+.nav-item .badge,
+.sidebar ul li a .badge {
+    margin-left: auto;
+    background: #ff4757;
+    color: white;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
+    line-height: 1.4;
+}
+
+/* ============================================================
+   SEPARADORES
+============================================================ */
+
+.sidebar .components {
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-group + .nav-group {
+    margin-top: 8px;
+}
+
+/* ============================================================
+   AJUSTE DO CONTEÚDO
+============================================================ */
+
+body,
+.wrapper,
+.main-wrapper {
+    padding-left: 220px;
+}
+
+.content,
+.main-content,
+.page-content,
+.content-wrapper {
+    margin-left: 0 !important;
+}
+
+/* ============================================================
+   RESPONSIVIDADE
+============================================================ */
+
+@media (max-width: 768px) {
+    .sidebar,
+    .sidebar-container {
+        transform: translateX(-220px);
+        width: 220px !important;
+    }
+    
+    .sidebar.active,
+    .sidebar-container.active {
+        transform: translateX(0);
+    }
+    
+    body,
+    .wrapper,
+    .main-wrapper {
+        padding-left: 0;
+    }
+}
+
+/* ============================================================
+   RESET DE CONFLITOS
+============================================================ */
+
+.sidebar *,
+.sidebar *::before,
+.sidebar *::after {
+    box-sizing: border-box;
+}
+
+.sidebar ul {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.sidebar ul li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.sidebar a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* ============================================================
+   IMPRESSÃO
+============================================================ */
+
+@media print {
+    .sidebar,
+    .sidebar-container {
+        display: none !important;
+    }
+    
+    body,
+    .wrapper,
+    .main-wrapper {
+        padding-left: 0 !important;
+    }
+}
+
+/* ============================================================
+   ESTADOS ESPECIAIS
+============================================================ */
+
+.sidebar.loading {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* Desabilita seleção de texto no menu */
+.sidebar {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Permite seleção nos textos do menu */
+.link-text,
+.logo-text {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
