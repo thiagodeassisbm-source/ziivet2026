@@ -324,6 +324,38 @@ $titulo_pagina = "Movimentação de Caixas";
             box-shadow: 0 4px 12px rgba(243, 156, 12, 0.3);
         }
         
+        .status-aberto {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            background: var(--verde);
+            padding: 6px 12px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .btn-icon-action {
+            background: linear-gradient(135deg, var(--laranja), #e08e0b);
+            color: #fff;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+        }
+
+        .btn-icon-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(224, 142, 11, 0.4);
+        }
+
         .status-fechado {
             color: var(--verde);
             font-size: 13px;
@@ -493,8 +525,11 @@ $titulo_pagina = "Movimentação de Caixas";
                                     </a>
 
                                     <?php if($mov['status'] == 'ABERTO'): ?>
-                                        <button class="btn-fechar-caixa" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
-                                            <i class="fas fa-lock"></i> Fechar
+                                        <span class="status-aberto">
+                                            <i class="fas fa-check-circle"></i> ABERTO
+                                        </span>
+                                        <button class="btn-icon-action" title="Fechar Caixa" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
+                                            <i class="fas fa-lock"></i>
                                         </button>
                                     <?php else: ?>
                                         <span class="status-fechado">
