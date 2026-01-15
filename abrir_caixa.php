@@ -1,4 +1,5 @@
 <?php
+ob_start();
 // ==========================================================
 // CONFIGURAÇÕES GERAIS
 // ==========================================================
@@ -10,6 +11,8 @@ error_reporting(E_ALL);
 require_once 'auth.php';
 require_once 'config/configuracoes.php';
 
+use App\Utils\Csrf;
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -20,6 +23,10 @@ $id_admin = $_SESSION['id_admin'] ?? 1;
 // 1. PROCESSAMENTO (POST) - ABRIR CAIXA - ✅ CORRIGIDO
 // ==========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'abrir_caixa') {
+    // Desativar erros visuais para evitar quebra do JSON
+    ini_set('display_errors', 0);
+    error_reporting(0);
+
     if(!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
         header('Content-Type: application/json');
         ob_clean();
@@ -446,6 +453,7 @@ $titulo_pagina = "Abrir Caixa";
 
         <form id="formAbrirCaixa">
             <input type="hidden" name="acao" value="abrir_caixa">
+            <input type="hidden" name="csrf_token" value="<?= Csrf::getToken() ?>">
 
             <div class="card-form">
                 <div class="card-header">
