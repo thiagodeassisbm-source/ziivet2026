@@ -9,10 +9,12 @@
 }
 
 #tata-chat-widget {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    z-index: 10000;
+    position: fixed !important;
+    bottom: 30px !important;
+    right: 30px !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 999999 !important;
     font-family: 'Source Sans Pro', sans-serif;
 }
 
@@ -87,6 +89,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 
 .tata-header-info {

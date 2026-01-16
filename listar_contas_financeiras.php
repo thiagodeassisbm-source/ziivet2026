@@ -316,6 +316,17 @@ try {
             </a>
         </div>
 
+        <!-- AVISO DE RECEBIMENTO ANTECIPADO -->
+        <div style="background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:10px; border-left:5px solid #1976d2; margin-bottom:20px; display:flex; align-items:center; gap:15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+            <i class="fas fa-info-circle" style="font-size:24px; color:#1976d2;"></i>
+            <div>
+                <strong style="display:block; font-size:14px; margin-bottom:4px; font-weight:700;">Recebimento de Cartão de Crédito</strong>
+                <span style="font-size:13px; line-height:1.4;">
+                    De acordo com a configuração no formulário de "Recebimentos", se for selecionado <strong>recebimento antecipado</strong>, os valores de cartão de crédito estarão disponíveis na conta bancária em até <strong>2 dias úteis</strong>.
+                </span>
+            </div>
+        </div>
+
         <!-- CONTAINER DA LISTAGEM -->
         <div class="list-container">
             

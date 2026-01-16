@@ -22,6 +22,9 @@ if (session_status() === PHP_SESSION_NONE) {
 $id_admin = $_SESSION['id_admin'] ?? 1;
 $id_caixa = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
+// Gerar token CSRF para uso no JavaScript
+$csrf_token = \App\Utils\Csrf::generate();
+
 if (!$id_caixa) {
     die("<script>alert('Caixa não informado!'); window.location.href='movimentacao_caixa.php';</script>");
 }
@@ -65,6 +68,37 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'adicionar_movimentacao') {
     exit;
 }
 
+// FECHAR CAIXA (muda de ABERTO para FECHADO - preparando para encerramento)
+if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa') {
+    header('Content-Type: application/json');
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Verificar se o caixa está aberto
+        $stmt_check = $pdo->prepare("SELECT status FROM caixas WHERE id = ?");
+        $stmt_check->execute([$id_caixa]);
+        $status_atual = $stmt_check->fetchColumn();
+        
+        if ($status_atual !== 'ABERTO') {
+            throw new Exception('Este caixa não está aberto.');
+        }
+        
+        // Atualizar status para FECHADO
+        $sql = "UPDATE caixas SET status = 'FECHADO' WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$id_caixa]);
+        
+        $pdo->commit();
+        echo json_encode(['status' => 'success', 'message' => 'Caixa fechado com sucesso!']);
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
     header('Content-Type: application/json');
     
@@ -100,9 +134,9 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
         $conta_origem = $dados_caixa['id_conta_origem'];
         $id_usuario_caixa = $dados_caixa['id_usuario'];
         
-        // Atualizar status do caixa
+        // Atualizar status do caixa para ENCERRADO (processo finalizado)
         $sql = "UPDATE caixas SET 
-                status = 'FECHADO',
+                status = 'ENCERRADO',
                 data_fechamento = ?,
                 valor_fechamento = ?,
                 id_conta_fechamento = ?
@@ -161,23 +195,23 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
         $stmt_upd_destino = $pdo->prepare($sql_destino);
         $stmt_upd_destino->execute([$novo_saldo_destino, $data_fechamento, $id_conta_destino]);
         
-        // CRIAR LANÇAMENTO FINANCEIRO para histórico
+        // CRIAR LANÇAMENTO FINANCEIRO para histórico (usar tabela contas, não a view lancamentos)
         if ($valor_fechamento > 0) {
             $descricao_lanc = "Fechamento do caixa #" . $id_caixa . " - Retorno de valores";
             
-            $sql_lanc = "INSERT INTO lancamentos 
-                        (id_admin, tipo, categoria, descricao, forma_pagamento, 
-                         id_conta, valor, status, id_caixa_referencia, 
-                         observacoes, data_vencimento, data_pagamento, data_cadastro, 
-                         parcela_atual, total_parcelas) 
-                        VALUES (?, 'ENTRADA', 'FECHAMENTO_CAIXA', ?, 'Dinheiro', 
-                                ?, ?, 'PAGO', ?, ?, NOW(), NOW(), NOW(), 1, 1)";
+            $sql_lanc = "INSERT INTO contas 
+                        (id_admin, natureza, categoria, descricao, forma_pagamento_detalhe, 
+                         id_conta_origem, valor_total, valor_parcela, qtd_parcelas, status_baixa, 
+                         id_caixa_referencia, observacoes, vencimento, data_pagamento, data_cadastro) 
+                        VALUES (?, 'Receita', 'FECHAMENTO_CAIXA', ?, 'Dinheiro', 
+                                ?, ?, ?, 1, 'PAGO', ?, ?, CURDATE(), NOW(), NOW())";
             
             $stmt_lanc = $pdo->prepare($sql_lanc);
             $stmt_lanc->execute([
                 $id_admin,
                 $descricao_lanc,
                 $id_conta_destino,
+                $valor_fechamento,
                 $valor_fechamento,
                 $id_caixa,
                 $comentario
@@ -216,6 +250,7 @@ try {
     $formasDoSistema = $stmtF->fetchAll(PDO::FETCH_ASSOC);
 
     // Modificado para capturar totais Brutos e Líquidos, agrupando cartões de crédito/débito
+    // EXCLUIR SUPRIMENTO das vendas (suprimento é apenas fundo de troco, não é venda)
     $stmtResumo = $pdo->prepare("
         SELECT 
             CASE 
@@ -232,6 +267,7 @@ try {
         WHERE l.id_caixa_referencia = ?
         AND l.tipo = 'ENTRADA'
         AND l.status = 'PAGO'
+        AND (l.categoria IS NULL OR l.categoria NOT IN ('SUPRIMENTO', 'Caixa'))
         ORDER BY forma_agrupada, l.id
     ");
     $stmtResumo->execute([$id_caixa]);
@@ -268,7 +304,8 @@ try {
     }
 
     $stmtLista = $pdo->prepare("
-        SELECT l.*, v.valor_total as venda_valor_bruto 
+        SELECT l.*, v.valor_total as venda_valor_bruto,
+        v.nfce_status, v.nfce_url, v.nfce_chave, v.id as id_real_venda
         FROM lancamentos l
         LEFT JOIN vendas v ON l.id_venda = v.id
         WHERE l.id_caixa_referencia = ?
@@ -297,7 +334,9 @@ try {
     ");
     $stmt_total->execute([$id_caixa, $id_caixa]);
     $total_em_caixa = $stmt_total->fetchColumn();
-
+    
+    // Hora atual para o modal de encerramento
+    $hora_atual = date('H:i');
 } catch (Exception $e) {
     die("Erro: " . $e->getMessage());
 }
@@ -386,7 +425,8 @@ $hora_atual = date('H:i');
 
         .badge-status { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
         .status-aberto { background: #dff0d8; color: #3c763d; }
-        .status-fechado { background: #f2dede; color: #a94442; }
+        .status-fechado { background: #fcf8e3; color: #8a6d3b; }
+        .status-encerrado { background: #d9edf7; color: #31708f; }
 
         .section-title-ziip { margin-bottom: 20px; color: #2c3e50; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
 
@@ -396,15 +436,24 @@ $hora_atual = date('H:i');
         .row-total { background: #fdfdfd; font-weight: 700; }
 
         .footer-actions {
+            position: fixed;
+            bottom: 0;
+            left: 240px; /* Largura do sidebar */
+            right: 0;
             background: #fff;
-            padding: 20px 30px;
-            border-radius: 16px;
+            padding: 15px 30px;
             display: flex;
             gap: 12px;
             align-items: center;
-            box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
             flex-wrap: wrap;
-            margin-bottom: 30px;
+            z-index: 100;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        /* Espaço extra no final do conteúdo para não ficar atrás do footer fixo */
+        .tabs-container {
+            margin-bottom: 100px;
         }
 
         .btn-ziip {
@@ -434,6 +483,186 @@ $hora_atual = date('H:i');
         
         .tab-pane { padding: 25px; }
     </style>
+    
+    <!-- Scripts no HEAD para carregar antes dos botões -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Status atual do caixa (injetado do PHP)
+        const statusCaixa = '<?= $caixa['status'] ?>';
+        const csrfToken = '<?= $csrf_token ?>';
+        
+        function abrirModalEncerramento() {
+            // VERIFICAR SE O CAIXA ESTÁ ABERTO
+            if (statusCaixa === 'ABERTO') {
+                Swal.fire({
+                    title: '<i class="fas fa-exclamation-triangle" style="color:#f39c12"></i> Caixa Aberto',
+                    html: `
+                        <div style="text-align:center; padding:20px;">
+                            <p style="font-size:16px; color:#666; margin-bottom:20px;">
+                                O caixa ainda está <strong style="color:#f39c12;">ABERTO</strong>.<br>
+                                Para encerrar, é necessário <strong>fechar o caixa</strong> primeiro.
+                            </p>
+                            <p style="font-size:14px; color:#888;">
+                                Isso vai registrar o fim das operações do operador.<br>
+                                Depois você poderá prosseguir com o encerramento.
+                            </p>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="fas fa-lock"></i> Sim, fechar o caixa',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#f39c12',
+                    width: '500px'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fecharCaixaParaEncerramento();
+                    }
+                });
+                return;
+            }
+            
+            // Se já está FECHADO, mostra o modal de encerramento
+            mostrarModalEncerramento();
+        }
+        
+        async function fecharCaixaParaEncerramento() {
+            const formData = new FormData();
+            formData.append('acao', 'fechar_caixa');
+            formData.append('csrf_token', csrfToken);
+            
+            Swal.fire({
+                title: 'Fechando caixa...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            
+            try {
+                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
+                const text = await res.text();
+                console.log('Resposta fechar:', text);
+                
+                let resposta;
+                try {
+                    resposta = JSON.parse(text);
+                } catch(parseErr) {
+                    Swal.fire('Erro', 'Resposta inválida do servidor. Verifique o console.', 'error');
+                    return;
+                }
+                
+                if (resposta.status === 'success') {
+                    Swal.fire({
+                        title: 'Caixa Fechado!',
+                        text: 'Agora você pode prosseguir com o encerramento.',
+                        icon: 'success',
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Erro', resposta.message || 'Erro desconhecido', 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao fechar:', e);
+                Swal.fire('Erro', 'Erro de conexão ao fechar o caixa: ' + e.message, 'error');
+            }
+        }
+        
+        function mostrarModalEncerramento() {
+            Swal.fire({
+                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
+                html: `
+                    <div style="background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);padding:25px;border-radius:12px;text-align:center;margin:20px 0">
+                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
+                        <div style="font-size:36px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
+                        <input type="date" id="data_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
+                        <input type="time" id="hora_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
+                    </div>
+                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
+                    <select id="conta_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px">
+                        <option value="">Selecione...</option>
+                        <?php foreach($contas_financeiras as $conta): ?>
+                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
+                        <?php endforeach; ?>
+                    </select></div>
+                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
+                    <textarea id="comentario_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" rows="4" placeholder="Observações sobre o encerramento..."></textarea></div>
+                `,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
+                denyButtonText: 'Colocar em revisão',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#1e40af',
+                denyButtonColor: '#6c757d',
+                width: '550px',
+                preConfirm: () => {
+                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
+                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
+                        return false;
+                    }
+                    return {
+                        id_conta_destino: document.getElementById('conta_enc').value,
+                        data_fechamento: document.getElementById('data_enc').value,
+                        hora_fechamento: document.getElementById('hora_enc').value,
+                        comentario: document.getElementById('comentario_enc').value
+                    };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    encerrarCaixa(result.value);
+                } else if (result.isDenied) {
+                    colocarEmRevisao();
+                }
+            });
+        }
+        
+        async function encerrarCaixa(dados) {
+            const formData = new FormData();
+            formData.append('acao', 'encerrar_caixa');
+            formData.append('csrf_token', csrfToken);
+            for (let key in dados) {
+                formData.append(key, dados[key]);
+            }
+            
+            try {
+                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
+                const resposta = await res.json();
+                
+                if (resposta.status === 'success') {
+                    Swal.fire({title: 'Sucesso!', text: resposta.message, icon: 'success', confirmButtonColor: '#28a745'}).then(() => location.reload());
+                } else {
+                    Swal.fire('Erro', resposta.message, 'error');
+                }
+            } catch (e) {
+                console.error('Erro detalhes:', e);
+                Swal.fire('Erro', 'Erro ao encerrar caixa. Verifique o console.', 'error');
+            }
+        }
+        
+        async function colocarEmRevisao() {
+            const formData = new FormData();
+            formData.append('acao', 'colocar_revisao');
+            formData.append('csrf_token', csrfToken);
+            
+            try {
+                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
+                const resposta = await res.json();
+                
+                if (resposta.status === 'success') {
+                    Swal.fire({title: 'Info', text: 'Caixa colocado em revisão', icon: 'info', confirmButtonColor: '#6c757d'}).then(() => location.reload());
+                } else {
+                    Swal.fire('Erro', resposta.message, 'error');
+                }
+            } catch (e) {
+                Swal.fire('Erro', 'Erro ao colocar em revisão', 'error');
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -452,6 +681,37 @@ $hora_atual = date('H:i');
             </a>
         </div>
 
+        <!-- BARRA DE AÇÕES DO CAIXA -->
+        <div style="background:#fff; padding:15px 20px; border-radius:12px; margin-bottom:20px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <button onclick="abrirModalLog()" style="padding:10px 16px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-search"></i> Log
+            </button>
+            <button onclick="abrirModalSuprimento()" style="padding:10px 16px; background:#28a745; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-plus-circle"></i> Suprimento
+            </button>
+            <button onclick="abrirModalSangria()" style="padding:10px 16px; background:#f39c12; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-minus-circle"></i> Sangria
+            </button>
+            <button onclick="abrirModalDespesa()" style="padding:10px 16px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-dollar-sign"></i> Despesa
+            </button>
+            <button onclick="abrirModalTransferencia()" style="padding:10px 16px; background:#17a2b8; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-exchange-alt"></i> Transferência
+            </button>
+            <?php if($caixa['status'] == 'ABERTO' || $caixa['status'] == 'FECHADO'): ?>
+            <button onclick="abrirModalEncerramento()" style="padding:10px 16px; background:#343a40; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-edit"></i> Revisar e encerrar
+            </button>
+            <?php endif; ?>
+            <div style="flex:1;"></div>
+            <button onclick="window.print()" style="padding:10px 16px; background:#fff; color:#333; border:2px solid #ddd; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            <a href="movimentacao_caixa.php" style="padding:10px 16px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; text-decoration:none; font-size:13px;">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+
         <div class="caixa-info-card">
             <div class="info-block">
                 <label>Caixa</label>
@@ -465,7 +725,7 @@ $hora_atual = date('H:i');
                 <label>Abertura</label>
                 <span><?= date('d/m/Y H:i', strtotime($inicio)) ?></span>
             </div>
-            <?php if($caixa['status'] == 'FECHADO'): ?>
+            <?php if($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
             <div class="info-block">
                 <label>Fechamento</label>
                 <span><?= date('d/m/Y H:i', strtotime($caixa['data_fechamento'])) ?></span>
@@ -473,8 +733,14 @@ $hora_atual = date('H:i');
             <?php endif; ?>
             <div class="info-block">
                 <label>Status</label>
-                <span class="badge-status <?= $caixa['status'] == 'ABERTO' ? 'status-aberto' : 'status-fechado' ?>">
-                    <?= $caixa['status'] ?>
+                <?php 
+                    $statusText = $caixa['status'] ?? 'N/A';
+                    $statusClass = 'status-aberto';
+                    if ($statusText == 'FECHADO') $statusClass = 'status-fechado';
+                    if ($statusText == 'ENCERRADO') $statusClass = 'status-encerrado';
+                ?>
+                <span class="badge-status <?= $statusClass ?>" style="display:inline-block; min-width:80px; text-align:center;">
+                    <?= htmlspecialchars($statusText) ?>
                 </span>
             </div>
         </div>
@@ -591,18 +857,16 @@ $hora_atual = date('H:i');
                             // Buscar movimentações (incluindo abertura e fechamento do caixa)
                             $movimentacoes = [];
                             
-                            // 1. ABERTURA DO CAIXA
-                            if ($caixa['valor_inicial'] > 0) {
-                                $movimentacoes[] = [
-                                    'data_cadastro' => $caixa['data_abertura'] . ' ' . $caixa['hora_abertura'],
-                                    'tipo' => 'ABERTURA',
-                                    'descricao' => $caixa['descricao'] ?: 'Abertura do caixa - Fundo de troco',
-                                    'nome_conta' => null,
-                                    'forma_pagamento' => 'Dinheiro',
-                                    'valor' => $caixa['valor_inicial'],
-                                    'observacoes' => null
-                                ];
-                            }
+                            // 1. ABERTURA DO CAIXA (sempre mostra)
+                            $movimentacoes[] = [
+                                'data_cadastro' => $caixa['data_abertura'] . ' ' . $caixa['hora_abertura'],
+                                'tipo' => 'ABERTURA',
+                                'descricao' => 'Abertura do Caixa #' . $caixa['id'] . ' - ' . ($caixa['nome_usuario'] ?? 'Operador'),
+                                'nome_conta' => null,
+                                'forma_pagamento' => 'Dinheiro',
+                                'valor' => $caixa['valor_inicial'] ?? 0,
+                                'observacoes' => $caixa['descricao'] ?: null
+                            ];
                             
                             // 2. MOVIMENTAÇÕES (Suprimentos, Sangrias, Despesas, Transferências)
                             $stmtMov = $pdo->prepare("
@@ -625,8 +889,8 @@ $hora_atual = date('H:i');
                             
                             $movimentacoes = array_merge($movimentacoes, $movLancamentos);
                             
-                            // 3. FECHAMENTO DO CAIXA
-                            if ($caixa['status'] == 'FECHADO' && $caixa['data_fechamento']) {
+                            // 3. FECHAMENTO DO CAIXA (se FECHADO ou ENCERRADO)
+                            if (($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO') && $caixa['data_fechamento']) {
                                 // Buscar nome da conta de fechamento
                                 $stmtContaFech = $pdo->prepare("SELECT nome_conta FROM contas_financeiras WHERE id = ?");
                                 $stmtContaFech->execute([$caixa['id_conta_fechamento']]);
@@ -638,7 +902,7 @@ $hora_atual = date('H:i');
                                     'descricao' => 'Encerramento do caixa',
                                     'nome_conta' => $contaFech['nome_conta'] ?? null,
                                     'forma_pagamento' => 'Dinheiro',
-                                    'valor' => $caixa['valor_fechamento'],
+                                    'valor' => $caixa['valor_fechamento'] ?? 0,
                                     'observacoes' => null
                                 ];
                             }
@@ -682,6 +946,7 @@ $hora_atual = date('H:i');
                                 <th>Hora</th>
                                 <th>Descrição</th>
                                 <th>Cliente</th>
+                                <th>NFC-e</th>
                                 <th>Forma</th>
                                 <th style="text-align: right;">Valor</th>
                             </tr>
@@ -695,6 +960,21 @@ $hora_atual = date('H:i');
                                 <td><?= date('H:i', strtotime($l['data_cadastro'])) ?></td>
                                 <td><?= htmlspecialchars($l['descricao']) ?></td>
                                 <td><?= htmlspecialchars($l['fornecedor_cliente']) ?></td>
+                                <td>
+                                    <?php if (!empty($l['id_real_venda'])): ?>
+                                        <?php if (($l['nfce_status'] ?? '') == 'AUTORIZADA'): ?>
+                                            <a href="<?= $l['nfce_url'] ?>" target="_blank" class="btn-ziip" style="background:#28a745; padding:5px 10px; font-size:12px;">
+                                                <i class="fas fa-check-circle"></i> Ver Nota
+                                            </a>
+                                        <?php else: ?>
+                                            <button onclick="emitirNFCe(<?= $l['id_real_venda'] ?>, this)" class="btn-ziip" style="background:#007bff; padding:5px 10px; font-size:12px; border:none;">
+                                                <i class="fas fa-paper-plane"></i> Emitir NFC-e
+                                            </button>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span style="color:#999;font-size:12px;">-</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><span class="badge-status" style="background:#eee; color:#555"><?= $l['forma_pagamento'] ?></span></td>
                                 <td style="text-align: right; font-weight: 700;">R$ <?= number_format($l['valor'], 2, ',', '.') ?></td>
                             </tr>
@@ -705,22 +985,99 @@ $hora_atual = date('H:i');
             </div>
         </div>
 
+        <!-- ========== BARRA DE BOTÕES FIXA ========== -->
+        <div style="position:fixed; bottom:0; left:240px; right:0; background:#2c3e50; padding:15px 30px; display:flex; gap:12px; z-index:9999; box-shadow:0 -4px 20px rgba(0,0,0,0.3);">
+            <button onclick="abrirModalLog()" style="padding:12px 20px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-search"></i> Log
+            </button>
+            <button onclick="abrirModalSuprimento()" style="padding:12px 20px; background:#28a745; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-plus-circle"></i> Suprimento
+            </button>
+            <button onclick="abrirModalSangria()" style="padding:12px 20px; background:#f39c12; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-minus-circle"></i> Sangria
+            </button>
+            <button onclick="abrirModalDespesa()" style="padding:12px 20px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-dollar-sign"></i> Despesa
+            </button>
+            <button onclick="abrirModalTransferencia()" style="padding:12px 20px; background:#17a2b8; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-exchange-alt"></i> Transferência
+            </button>
+            <?php if($caixa['status'] == 'ABERTO'): ?>
+            <button onclick="abrirModalEncerramento()" style="padding:12px 20px; background:#343a40; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-edit"></i> Revisar e encerrar
+            </button>
+            <?php endif; ?>
+            <div style="flex:1;"></div>
+            <button onclick="window.print()" style="padding:12px 20px; background:#fff; color:#333; border:2px solid #ddd; border-radius:8px; font-weight:700; cursor:pointer;">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            <a href="movimentacao_caixa.php" style="padding:12px 20px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; text-decoration:none;">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+
+        <script>
+            function emitirNFCe(idVenda, btn) {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Emitindo...';
+                btn.disabled = true;
+
+                $.post('../nfe/emitir_nota.php', { id_venda: idVenda }, function(res) {
+                    if (res.success) {
+                        Swal.fire({
+                            title: 'NFC-e Emitida!',
+                            html: `
+                                <div style="font-size: 14px; color: #555; margin-bottom: 20px;">
+                                    A nota fiscal foi autorizada com sucesso.
+                                </div>
+                                <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #333; word-break: break-all;">
+                                    ${res.chave}
+                                </div>
+                                <a href="${res.url}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; font-family: 'Exo', sans-serif; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); transition: all 0.3s ease; gap: 8px;">
+                                    <i class="fas fa-qrcode"></i> Visualizar Nota (DANFE)
+                                </a>
+                            `,
+                            icon: 'success',
+                            confirmButtonColor: '#6c757d',
+                            confirmButtonText: 'Fechar e recarregar'
+                        }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Erro', res.message, 'error');
+                        btn.innerHTML = originalHtml;
+                        btn.disabled = false;
+                    }
+                }, 'json').fail(function() {
+                    Swal.fire('Erro', 'Falha na comunicação com o servidor.', 'error');
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                });
+            }
+        </script>
+        <!-- DEBUG: Status do caixa = <?= $caixa['status'] ?> -->
+        <div style="background:#ffcccc; padding:10px; margin:20px 0; border:2px solid red; font-weight:bold;">
+            🔍 DEBUG: Status do Caixa = "<?= $caixa['status'] ?>" | 
+            Condição ABERTO = <?= ($caixa['status'] == 'ABERTO') ? 'TRUE' : 'FALSE' ?>
+        </div>
+        
         <?php if($caixa['status'] == 'ABERTO'): ?>
         <div class="footer-actions">
-            <button class="btn-ziip bg-sup" onclick="abrirModalSuprimento()"><i class="fas fa-plus-circle"></i> SUPRIMENTO</button>
-            <button class="btn-ziip bg-san" onclick="abrirModalSangria()"><i class="fas fa-minus-circle"></i> SANGRIA</button>
-            <button class="btn-ziip bg-des" onclick="abrirModalDespesa()"><i class="fas fa-dollar-sign"></i> DESPESA</button>
-            <button class="btn-ziip bg-tra" onclick="abrirModalTransferencia()"><i class="fas fa-exchange-alt"></i> TRANSFERÊNCIA</button>
+            <button class="btn-ziip bg-log" onclick="abrirModalLog()"><i class="fas fa-search"></i> Log</button>
+            <button class="btn-ziip bg-sup" onclick="abrirModalSuprimento()"><i class="fas fa-plus-circle"></i> Suprimento</button>
+            <button class="btn-ziip bg-san" onclick="abrirModalSangria()"><i class="fas fa-minus-circle"></i> Sangria</button>
+            <button class="btn-ziip bg-des" onclick="abrirModalDespesa()"><i class="fas fa-dollar-sign"></i> Despesa</button>
+            <button class="btn-ziip bg-tra" onclick="abrirModalTransferencia()"><i class="fas fa-exchange-alt"></i> Transferência</button>
+            <button class="btn-ziip bg-enc" onclick="abrirModalEncerramento()"><i class="fas fa-edit"></i> Revisar e encerrar</button>
             
             <div class="spacer"></div>
             
-            <button class="btn-ziip bg-enc" onclick="abrirModalEncerramento()"><i class="fas fa-check"></i> REVISAR E ENCERRAR</button>
-            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> IMPRIMIR</button>
+            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
+            <a href="movimentacao_caixa.php" class="btn-ziip bg-log"><i class="fas fa-arrow-left"></i> Voltar</a>
         </div>
         <?php else: ?>
         <div class="footer-actions">
-            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> IMPRIMIR</button>
-            <a href="movimentacao_caixa.php" class="btn-ziip bg-log"><i class="fas fa-arrow-left"></i> VOLTAR</a>
+            <button class="btn-ziip bg-log" onclick="abrirModalLog()"><i class="fas fa-search"></i> Log</button>
+            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
+            <a href="movimentacao_caixa.php" class="btn-ziip bg-log"><i class="fas fa-arrow-left"></i> Voltar</a>
         </div>
         <?php endif; ?>
 
@@ -736,6 +1093,96 @@ $hora_atual = date('H:i');
             btns.forEach(b => b.classList.remove('active'));
             document.getElementById(abaId).style.display = 'block';
             event.currentTarget.classList.add('active');
+        }
+        
+        function abrirModalLog() {
+            Swal.fire({
+                title: '<i class="fas fa-search"></i> Log de Movimentações',
+                html: `
+                    <div style="text-align:left; max-height:400px; overflow-y:auto;">
+                        <p style="color:#666; font-size:13px; margin-bottom:15px;">
+                            Histórico de ações realizadas neste caixa.
+                        </p>
+                        <div id="log_content" style="background:#f8f9fa; padding:15px; border-radius:8px; font-size:12px; font-family:monospace;">
+                            Carregando...
+                        </div>
+                    </div>
+                `,
+                width: '700px',
+                showConfirmButton: true,
+                confirmButtonText: 'Fechar',
+                confirmButtonColor: '#6c757d',
+                didOpen: () => {
+                    // Carregar logs via AJAX se necessário
+                    document.getElementById('log_content').innerHTML = `
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div style="padding:8px; background:#e9f7ef; border-left:3px solid #28a745; border-radius:4px;">
+                                <strong style="color:#28a745;">ABERTURA</strong> - <?= date('d/m/Y H:i', strtotime($caixa['data_abertura'] . ' ' . $caixa['hora_abertura'])) ?><br>
+                                <small>Caixa aberto por <?= htmlspecialchars($caixa['nome_usuario'] ?? 'Operador') ?> com fundo de R$ <?= number_format($caixa['valor_inicial'], 2, ',', '.') ?></small>
+                            </div>
+                            <?php if ($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
+                            <div style="padding:8px; background:#fbeaea; border-left:3px solid #dc3545; border-radius:4px;">
+                                <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= date('d/m/Y H:i', strtotime($caixa['data_fechamento'])) ?><br>
+                                <small>Caixa encerrado</small>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        function abrirModalEncerramento() {
+            Swal.fire({
+                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
+                html: `
+                    <div style="background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);padding:25px;border-radius:12px;text-align:center;margin:20px 0">
+                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
+                        <div style="font-size:36px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
+                        <input type="date" id="data_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
+                        <input type="time" id="hora_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
+                    </div>
+                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
+                    <select id="conta_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px">
+                        <option value="">Selecione...</option>
+                        <?php foreach($contas_financeiras as $conta): ?>
+                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
+                        <?php endforeach; ?>
+                    </select></div>
+                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
+                    <textarea id="comentario_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" rows="4" placeholder="Observações sobre o encerramento..."></textarea></div>
+                `,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
+                denyButtonText: 'Colocar em revisão',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#1e40af',
+                denyButtonColor: '#6c757d',
+                width: '550px',
+                preConfirm: () => {
+                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
+                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
+                        return false;
+                    }
+                    return {
+                        id_conta_destino: document.getElementById('conta_enc').value,
+                        data_fechamento: document.getElementById('data_enc').value,
+                        hora_fechamento: document.getElementById('hora_enc').value,
+                        comentario: document.getElementById('comentario_enc').value
+                    };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    encerrarCaixa(result.value);
+                } else if (result.isDenied) {
+                    colocarEmRevisao();
+                }
+            });
         }
         
         function abrirModalSuprimento() {
@@ -958,6 +1405,59 @@ $hora_atual = date('H:i');
             });
         }
         
+        function abrirModalEncerramento() {
+            Swal.fire({
+                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
+                html: `
+                    <div style="background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);padding:25px;border-radius:12px;text-align:center;margin:20px 0">
+                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
+                        <div style="font-size:36px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
+                        <input type="date" id="data_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
+                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
+                        <input type="time" id="hora_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
+                    </div>
+                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
+                    <select id="conta_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px">
+                        <option value="">Selecione...</option>
+                        <?php foreach($contas_financeiras as $conta): ?>
+                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
+                        <?php endforeach; ?>
+                    </select></div>
+                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
+                    <textarea id="comentario_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" rows="4" placeholder="Observações sobre o encerramento..."></textarea></div>
+                `,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
+                denyButtonText: 'Colocar em revisão',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#1e40af',
+                denyButtonColor: '#6c757d',
+                width: '550px',
+                preConfirm: () => {
+                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
+                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
+                        return false;
+                    }
+                    return {
+                        id_conta_destino: document.getElementById('conta_enc').value,
+                        data_fechamento: document.getElementById('data_enc').value,
+                        hora_fechamento: document.getElementById('hora_enc').value,
+                        comentario: document.getElementById('comentario_enc').value
+                    };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    encerrarCaixa(result.value);
+                } else if (result.isDenied) {
+                    Swal.fire('Info', 'Caixa colocado em revisão', 'info');
+                }
+            });
+        }
+        
         async function adicionarMovimentacao(tipo, dados) {
             const formData = new FormData();
             formData.append('acao', 'adicionar_movimentacao');
@@ -998,6 +1498,24 @@ $hora_atual = date('H:i');
                 }
             } catch (e) {
                 Swal.fire('Erro', 'Erro ao encerrar caixa', 'error');
+            }
+        }
+        
+        async function colocarEmRevisao() {
+            const formData = new FormData();
+            formData.append('acao', 'colocar_revisao');
+            
+            try {
+                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
+                const resposta = await res.json();
+                
+                if (resposta.status === 'success') {
+                    Swal.fire({title: 'Info', text: 'Caixa colocado em revisão', icon: 'info', confirmButtonColor: '#6c757d'}).then(() => location.reload());
+                } else {
+                    Swal.fire('Erro', resposta.message, 'error');
+                }
+            } catch (e) {
+                Swal.fire('Erro', 'Erro ao colocar em revisão', 'error');
             }
         }
     </script>

@@ -32,7 +32,8 @@ try {
         SUM(CASE WHEN tipo = 'ENTRADA' THEN valor ELSE 0 END) as receitas_total,
         SUM(CASE WHEN tipo = 'SAIDA' THEN valor ELSE 0 END) as despesas_total
         FROM lancamentos 
-        WHERE id_admin = ?");
+        WHERE id_admin = ?
+        AND (categoria IS NULL OR categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))");
     $stmt->execute([$id_admin]);
     $row_totais = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -52,6 +53,7 @@ try {
         SUM(CASE WHEN tipo = 'SAIDA' THEN valor ELSE 0 END) as desp
         FROM lancamentos 
         WHERE id_admin = ?
+        AND (categoria IS NULL OR categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))
         GROUP BY forma_pagamento_tratada
         ORDER BY forma_pagamento_tratada");
     $stmt_forma->execute([$id_admin]);
@@ -65,6 +67,7 @@ try {
         SUM(CASE WHEN tipo = 'SAIDA' THEN valor ELSE 0 END) as desp
         FROM lancamentos 
         WHERE id_admin = ?
+        AND (categoria IS NULL OR categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))
         GROUP BY status
         ORDER BY FIELD(status, 'PAGO', 'PENDENTE', 'CANCELADO')");
     $stmt_status->execute([$id_admin]);
@@ -112,7 +115,8 @@ try {
     $sql_lancamentos = "SELECT l.*, v.valor_total as venda_valor_bruto
                         FROM lancamentos l
                         LEFT JOIN vendas v ON l.id_venda = v.id
-                        WHERE l.id_admin = ?";
+                        WHERE l.id_admin = ?
+                        AND (l.categoria IS NULL OR l.categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))";
     
     $params = [$id_admin];
     
@@ -519,6 +523,17 @@ function extrairInfoTaxa($descricao) {
 
             <div class="tab-content">
                 <?php if ($aba == 'resumo'): ?>
+                    
+                    <!-- AVISO DE RECEBIMENTO ANTECIPADO -->
+                    <div style="background:#e3f2fd; color:#0d47a1; padding:15px; border-radius:10px; border-left:5px solid #1976d2; margin-bottom:20px; display:flex; align-items:center; gap:15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <i class="fas fa-info-circle" style="font-size:24px; color:#1976d2;"></i>
+                        <div>
+                            <strong style="display:block; font-size:14px; margin-bottom:4px; font-weight:700;">Recebimento de Cartão de Crédito</strong>
+                            <span style="font-size:13px; line-height:1.4;">
+                                De acordo com a configuração no formulário de "Recebimentos", se for selecionado <strong>recebimento antecipado</strong>, os valores de cartão de crédito estarão disponíveis na conta bancária em até <strong>2 dias úteis</strong>.
+                            </span>
+                        </div>
+                    </div>
                     
                     <!-- ✅ KPI CARDS - APENAS NA ABA RESUMO -->
                     <div class="kpi-cards">

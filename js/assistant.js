@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const chatWindow = document.getElementById('tata-chat-window');
     const closeBtn = document.getElementById('tata-close-chat');
     const finishBtn = document.getElementById('tata-finish-chat');
+    const restartBtn = document.getElementById('tata-restart-chat');
     const chatInput = document.getElementById('tata-input');
     const sendBtn = document.getElementById('tata-send');
     const messageArea = document.getElementById('tata-messages');
@@ -82,6 +83,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    if (restartBtn) {
+        restartBtn.addEventListener('click', function () {
+            finishBtn.click();
+        });
+    }
 
     function addInitialMessage() {
         typeWriter("Olá! Eu sou a **Tata**, sua assistente virtual. Vamos recomeçar? O que você gostaria de saber sobre o ZiipVet hoje?", 'bot');
@@ -188,8 +195,11 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(response => response.json())
             .then(data => {
-                hideTyping();
-                typeWriter(data.reply, 'bot');
+                // Simular tempo de "pensamento" (2 segundos)
+                setTimeout(() => {
+                    hideTyping();
+                    typeWriter(data.reply, 'bot');
+                }, 2000);
             })
             .catch(() => {
                 hideTyping();
@@ -225,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function () {
         messageArea.appendChild(msgDiv);
 
         let i = 0;
-        const speed = 20;
+        const speed = 30; // Velocidade natural de digitação
         isTyping = true;
         function type() {
             if (i < text.length) {

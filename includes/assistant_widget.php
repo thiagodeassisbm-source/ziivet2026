@@ -48,9 +48,14 @@
         <!-- Input -->
         <div class="tata-input-area">
             <input type="text" id="tata-input" placeholder="Digite sua dúvida aqui..." autocomplete="off">
-            <button id="tata-send" class="tata-send-btn">
-                <i class="fas fa-paper-plane"></i>
-            </button>
+            <div style="display:flex; gap:5px;">
+                <button id="tata-restart-chat" class="tata-send-btn" style="background:#ddd; color:#555;" title="Reiniciar Conversa">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                <button id="tata-send" class="tata-send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
         </div>
     </div>
 </div>

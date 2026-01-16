@@ -7,11 +7,19 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// 1. Verifica se o utilizador está autenticado
+// 1. Verifica se o usuário está autenticado
 if (!isset($_SESSION['usuario_id']) || !isset($_SESSION['id_admin'])) {
     session_unset();
     session_destroy();
-    header("Location: login.php?erro=sessao_expirada");
+    
+    // Detectar nível de diretório para corrigir path do login
+    $path = dirname($_SERVER['PHP_SELF']);
+    $depth = substr_count($path, '/');
+    // Ajuste simples: se tiver mais de 1 barra (ex: /nfe/arquivo.php), sobe um nível.
+    // Melhor abordagem: Usar URL absoluta se possível, ou detectar se está em subpasta.
+    $loginPath = (strpos($_SERVER['REQUEST_URI'], '/nfe/') !== false || strpos($_SERVER['REQUEST_URI'], '/nota-fiscal/') !== false) ? '../login.php' : 'login.php';
+    
+    header("Location: " . $loginPath . "?erro=sessao_expirada");
     exit;
 }
 

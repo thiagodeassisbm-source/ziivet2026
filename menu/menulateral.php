@@ -123,6 +123,44 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
             </div>
         </div>
 
+        <!-- NFC-e / NOTA FISCAL -->
+        <div class="nav-group">
+            <?php 
+                $nfe_pages = ['envios_nfe.php', 'perfil_tributario.php', 'cadastro_perfil_tributario.php', 'configuracoes_nfe.php', 'configuracao-clinica.php', 'verificar_configuracoes.php'];
+                $isNFeActive = in_array($currentPage, $nfe_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isNFeActive ? 'active-parent' : '' ?>">
+                <div class="icon-container"><i class="fas fa-file-invoice"></i></div>
+                <span class="link-text">NFC-e</span>
+                <i class="fas fa-chevron-right arrow-submenu"></i>
+            </a>
+            <div class="submenu" style="<?= $isNFeActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>nota-fiscal/configuracao-clinica.php" class="<?= $currentPage == 'configuracao-clinica.php' ? 'active' : '' ?>">Dados Empresa</a>
+                <a href="<?= URL_BASE ?>nfe/envios_nfe.php" class="<?= $currentPage == 'envios_nfe.php' ? 'active' : '' ?>">Notas Emitidas</a>
+                <a href="<?= URL_BASE ?>nfe/perfil_tributario.php" class="<?= $currentPage == 'perfil_tributario.php' || $currentPage == 'cadastro_perfil_tributario.php' ? 'active' : '' ?>">Perfis Tributários</a>
+                <a href="<?= URL_BASE ?>nfe/configuracoes_nfe.php" class="<?= $currentPage == 'configuracoes_nfe.php' ? 'active' : '' ?>">Configurações Fiscais</a>
+                <a href="<?= URL_BASE ?>nfe/verificar_configuracoes.php" class="<?= $currentPage == 'verificar_configuracoes.php' ? 'active' : '' ?>">Testar Comunicação</a>
+            </div>
+        </div>
+
+        <!-- NFS-e / NOTA DE SERVIÇO -->
+        <div class="nav-group">
+            <?php 
+                $nfse_pages = ['emitir_nfse.php', 'lista_nfse.php', 'config_nfse.php'];
+                $isNFSeActive = in_array($currentPage, $nfse_pages);
+            ?>
+            <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isNFSeActive ? 'active-parent' : '' ?>">
+                <div class="icon-container"><i class="fas fa-file-contract"></i></div>
+                <span class="link-text">NFS-e (Serviços)</span>
+                <i class="fas fa-chevron-right arrow-submenu"></i>
+            </a>
+            <div class="submenu" style="<?= $isNFSeActive ? 'display:block' : '' ?>">
+                <a href="<?= URL_BASE ?>nfe/nfse/lista_nfse.php" class="<?= $currentPage == 'lista_nfse.php' ? 'active' : '' ?>">Notas Emitidas</a>
+                <a href="<?= URL_BASE ?>nfe/nfse/emitir_nfse.php" class="<?= $currentPage == 'emitir_nfse.php' ? 'active' : '' ?>">Emitir Nota</a>
+                <a href="<?= URL_BASE ?>nfe/nfse/config_nfse.php" class="<?= $currentPage == 'config_nfse.php' ? 'active' : '' ?>">Configurações NFS-e</a>
+            </div>
+        </div>
+
         <a href="<?= URL_BASE ?>internacao.php" class="nav-item <?= $currentPage == 'internacao.php' ? 'active' : '' ?>">
             <div class="icon-container"><i class="fas fa-clinic-medical"></i></div>
             <span class="link-text">Internação</span>
@@ -136,7 +174,7 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
         <!-- CONFIGURAÇÕES -->
         <div class="nav-group">
             <?php 
-                $config_pages = ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'configuracao-clinica.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php'];
+                $config_pages = ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php'];
                 $isConfigActive = in_array($currentPage, $config_pages);
             ?>
             <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isConfigActive ? 'active-parent' : '' ?>">
@@ -147,7 +185,6 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
             <div class="submenu" style="<?= $isConfigActive ? 'display:block' : '' ?>">
                 <a href="<?= URL_BASE ?>listar_usuarios.php" class="<?= ($currentPage == 'listar_usuarios.php' || $currentPage == 'usuarios.php') ? 'active' : '' ?>">Equipe e Permissões</a>
                 <a href="<?= URL_BASE ?>app/minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Dados do Perfil</a>
-                <a href="<?= URL_BASE ?>nota-fiscal/configuracao-clinica.php" class="<?= $currentPage == 'configuracao-clinica.php' ? 'active' : '' ?>">Nota Fiscal (NFe)</a>
                 <a href="<?= URL_BASE ?>gerenciar_numeros_autorizados.php" class="<?= $currentPage == 'gerenciar_numeros_autorizados.php' ? 'active' : '' ?>">WhatsApp API</a>
             </div>
         </div>

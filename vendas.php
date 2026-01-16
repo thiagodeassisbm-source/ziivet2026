@@ -1395,13 +1395,54 @@ try {
                 
                 if(resposta.status === 'success') {
                     Swal.fire({
-                        title: 'Sucesso!',
-                        text: resposta.message,
+                        title: 'Venda Realizada!',
+                        text: resposta.message + ' Deseja emitir a NFC-e agora?',
                         icon: 'success',
+                        showCancelButton: true,
                         confirmButtonColor: '#1e40af',
-                        confirmButtonText: 'OK',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Sim, emitir NFC-e',
+                        cancelButtonText: 'Não, nova venda',
                         allowOutsideClick: false
-                    }).then(() => location.reload());
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Emitir NFC-e
+                            Swal.fire({
+                                title: 'Emitindo NFC-e...',
+                                html: 'Aguarde a comunicação com a SEFAZ.',
+                                allowOutsideClick: false,
+                                didOpen: () => Swal.showLoading()
+                            });
+                            
+                    $.post('nfe/emitir_nota.php', { id_venda: resposta.id }, function(resNfe) {
+                        if (resNfe.success) {
+                            Swal.fire({
+                                title: 'NFC-e Emitida!',
+                                html: `
+                                    <div style="font-size: 14px; color: #555; margin-bottom: 20px;">
+                                        A nota fiscal foi autorizada com sucesso.
+                                    </div>
+                                    <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #333; word-break: break-all;">
+                                        ${resNfe.chave}
+                                    </div>
+                                    <a href="${resNfe.url}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; font-family: 'Exo', sans-serif; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); transition: all 0.3s ease; gap: 8px;">
+                                        <i class="fas fa-qrcode"></i> Visualizar Nota (DANFE)
+                                    </a>
+                                `,
+                                icon: 'success',
+                                confirmButtonText: 'Fechar e recarregar',
+                                confirmButtonColor: '#6c757d'
+                            }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Erro na Emissão', resNfe.message, 'error').then(() => location.reload());
+                        }
+                    }, 'json').fail(function() {
+                        Swal.fire('Erro', 'Falha ao comunicar com o servidor de emissão.', 'error').then(() => location.reload());
+                    });
+                        } else {
+                            location.reload();
+                        }
+                    });
                 } else {
                     Swal.fire({
                         title: 'Atenção!',
