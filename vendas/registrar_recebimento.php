@@ -664,6 +664,78 @@ function calcularTroco() {
     $('#modal_troco').text('R$ ' + Math.max(0, troco).toLocaleString('pt-BR', {minimumFractionDigits: 2}));
 }
 
+// ========== FUNÇÕES DE EMISSÃO DE NOTAS FISCAIS ==========
+
+function emitirNFCe(idVenda) {
+    Swal.fire({
+        title: 'Emitindo NFC-e...',
+        html: 'Aguarde a comunicação com a SEFAZ.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+    
+    $.post('../nfe/emitir_nota.php', { id_venda: idVenda }, function(resNfe) {
+        if (resNfe.success) {
+            Swal.fire({
+                title: 'NFC-e Emitida!',
+                html: `
+                    <div style="font-size: 14px; color: #555; margin-bottom: 20px;">
+                        A nota fiscal foi autorizada com sucesso.
+                    </div>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #333; word-break: break-all;">
+                        ${resNfe.chave}
+                    </div>
+                    <a href="${resNfe.url}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; font-family: 'Exo', sans-serif; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); transition: all 0.3s ease; gap: 8px;">
+                        <i class="fas fa-qrcode"></i> Visualizar Nota (DANFE)
+                    </a>
+                `,
+                icon: 'success',
+                confirmButtonText: 'Fechar e recarregar',
+                confirmButtonColor: '#6c757d'
+            }).then(() => location.reload());
+        } else {
+            Swal.fire('Erro na Emissão', resNfe.message, 'error').then(() => location.reload());
+        }
+    }, 'json').fail(function() {
+        Swal.fire('Erro', 'Falha ao comunicar com o servidor de emissão.', 'error').then(() => location.reload());
+    });
+}
+
+function emitirNFSe(idVenda) {
+    Swal.fire({
+        title: 'Emitindo NFS-e...',
+        html: 'Aguarde o processamento da Nota de Serviço.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+    
+    $.post('../nfe/nfse/emitir_nfse.php', { id_venda: idVenda }, function(resNfse) {
+        if (resNfse.success) {
+            Swal.fire({
+                title: 'NFS-e Emitida!',
+                html: `
+                    <div style="font-size: 14px; color: #555; margin-bottom: 20px;">
+                        A nota de serviço foi emitida com sucesso.
+                    </div>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #333;">
+                        Número: ${resNfse.numero || 'N/A'}
+                    </div>
+                    ${resNfse.url ? `<a href="${resNfse.url}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; background: linear-gradient(135deg, #622599 0%, #8b5cf6 100%); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; box-shadow: 0 4px 12px rgba(98, 37, 153, 0.3); gap: 8px;">
+                        <i class="fas fa-file-invoice"></i> Visualizar NFS-e
+                    </a>` : ''}
+                `,
+                icon: 'success',
+                confirmButtonText: 'Fechar e recarregar',
+                confirmButtonColor: '#622599'
+            }).then(() => location.reload());
+        } else {
+            Swal.fire('Erro na Emissão', resNfse.message || 'Erro desconhecido', 'error').then(() => location.reload());
+        }
+    }, 'json').fail(function() {
+        Swal.fire('Erro', 'Falha ao comunicar com o servidor de emissão de NFS-e.', 'error').then(() => location.reload());
+    });
+}
+
 /**
  * Finaliza a venda com pagamento
  */
@@ -765,54 +837,87 @@ async function finalizarVendaComPagamento() {
         fecharModalFinalizar();
         
         if(resposta.status === 'success') {
-            Swal.fire({
-                title: 'Venda Realizada!',
-                text: resposta.message + ' Deseja emitir a NFC-e agora?',
-                icon: 'success',
-                showCancelButton: true,
-                confirmButtonColor: '#1e40af',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Sim, emitir NFC-e',
-                cancelButtonText: 'Não, nova venda',
-                allowOutsideClick: false
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Emitindo NFC-e...',
-                        html: 'Aguarde a comunicação com a SEFAZ.',
-                        allowOutsideClick: false,
-                        didOpen: () => Swal.showLoading()
-                    });
-                    
-                    $.post('nfe/emitir_nota.php', { id_venda: resposta.id }, function(resNfe) {
-                        if (resNfe.success) {
-                            Swal.fire({
-                                title: 'NFC-e Emitida!',
-                                html: `
-                                    <div style="font-size: 14px; color: #555; margin-bottom: 20px;">
-                                        A nota fiscal foi autorizada com sucesso.
-                                    </div>
-                                    <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-family: monospace; font-size: 12px; color: #333; word-break: break-all;">
-                                        ${resNfe.chave}
-                                    </div>
-                                    <a href="${resNfe.url}" target="_blank" style="display: inline-flex; align-items: center; justify-content: center; padding: 12px 24px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; font-family: 'Exo', sans-serif; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); transition: all 0.3s ease; gap: 8px;">
-                                        <i class="fas fa-qrcode"></i> Visualizar Nota (DANFE)
-                                    </a>
-                                `,
-                                icon: 'success',
-                                confirmButtonText: 'Fechar e recarregar',
-                                confirmButtonColor: '#6c757d'
-                            }).then(() => location.reload());
-                        } else {
-                            Swal.fire('Erro na Emissão', resNfe.message, 'error').then(() => location.reload());
-                        }
-                    }, 'json').fail(function() {
-                        Swal.fire('Erro', 'Falha ao comunicar com o servidor de emissão.', 'error').then(() => location.reload());
-                    });
-                } else {
-                    location.reload();
-                }
-            });
+            const temProduto = resposta.tem_produto;
+            const temServico = resposta.tem_servico;
+            
+            // CASO 1: Apenas PRODUTOS → Perguntar NFC-e
+            if (temProduto && !temServico) {
+                Swal.fire({
+                    title: 'Venda Realizada!',
+                    text: resposta.message + ' Deseja emitir a NFC-e agora?',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonColor: '#1e40af',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="fas fa-receipt"></i> Sim, emitir NFC-e',
+                    cancelButtonText: 'Não, nova venda',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        emitirNFCe(resposta.id);
+                    } else {
+                        location.reload();
+                    }
+                });
+            }
+            // CASO 2: Apenas SERVIÇOS → Perguntar NFS-e
+            else if (!temProduto && temServico) {
+                Swal.fire({
+                    title: 'Venda Realizada!',
+                    text: resposta.message + ' Deseja emitir a NFS-e (Nota de Serviço) agora?',
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonColor: '#622599',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="fas fa-file-invoice"></i> Sim, emitir NFS-e',
+                    cancelButtonText: 'Não, nova venda',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        emitirNFSe(resposta.id);
+                    } else {
+                        location.reload();
+                    }
+                });
+            }
+            // CASO 3: PRODUTOS + SERVIÇOS → Perguntar ambas
+            else if (temProduto && temServico) {
+                Swal.fire({
+                    title: 'Venda Realizada!',
+                    html: `
+                        <p style="margin-bottom:20px;">${resposta.message}</p>
+                        <p style="font-weight:600; color:#333;">Esta venda contém <strong>produtos</strong> e <strong>serviços</strong>.</p>
+                        <p style="font-size:14px; color:#666;">Você precisa emitir duas notas fiscais:</p>
+                    `,
+                    icon: 'success',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonColor: '#1e40af',
+                    denyButtonColor: '#622599',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="fas fa-receipt"></i> Emitir NFC-e (Produtos)',
+                    denyButtonText: '<i class="fas fa-file-invoice"></i> Emitir NFS-e (Serviços)',
+                    cancelButtonText: 'Não emitir agora',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        emitirNFCe(resposta.id);
+                    } else if (result.isDenied) {
+                        emitirNFSe(resposta.id);
+                    } else {
+                        location.reload();
+                    }
+                });
+            }
+            // CASO 4: Nenhum tipo detectado (fallback)
+            else {
+                Swal.fire({
+                    title: 'Venda Realizada!',
+                    text: resposta.message,
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                }).then(() => location.reload());
+            }
         } else {
             Swal.fire({
                 title: 'Erro',
