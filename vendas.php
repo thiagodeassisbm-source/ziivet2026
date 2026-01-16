@@ -137,17 +137,30 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa_simples') {
             $dados['id_admin'] = $id_admin;
             $dados['usuario_vendedor'] = $usuario_logado;
             
-            // Detectar tipo de itens na venda
+            // Detectar tipo de itens na venda BUSCANDO DO BANCO
             $tem_produto = false;
             $tem_servico = false;
             
             if (isset($dados['itens']) && is_array($dados['itens'])) {
                 foreach ($dados['itens'] as $item) {
-                    $tipo = $item['tipo_item'] ?? 'produto'; // Default: produto
-                    if ($tipo === 'servico') {
-                        $tem_servico = true;
-                    } else {
-                        $tem_produto = true;
+                    // Buscar o tipo do produto no banco de dados
+                    $id_produto = $item['id'] ?? 0;
+                    if ($id_produto > 0) {
+                        $stmt_tipo = $pdo->prepare("SELECT tipo FROM produtos WHERE id = ? AND id_admin = ?");
+                        $stmt_tipo->execute([$id_produto, $id_admin]);
+                        $produto_info = $stmt_tipo->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($produto_info) {
+                            $tipo = strtolower($produto_info['tipo'] ?? 'produto');
+                            if ($tipo === 'servico' || $tipo === 'serviço') {
+                                $tem_servico = true;
+                            } else {
+                                $tem_produto = true;
+                            }
+                        } else {
+                            // Se não encontrou, assume produto
+                            $tem_produto = true;
+                        }
                     }
                 }
             }
@@ -196,7 +209,7 @@ try {
                     ORDER BY p.nome_paciente ASC LIMIT 500"; 
     $animais = $pdo->query($sql_animais)->fetchAll(PDO::FETCH_ASSOC);
 
-    $produtos = $pdo->query("SELECT id, nome, preco_venda FROM produtos WHERE id_admin = $id_admin AND status = 'ATIVO' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $produtos = $pdo->query("SELECT id, nome, preco_venda, tipo FROM produtos WHERE id_admin = $id_admin AND status = 'ATIVO' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
 
     // Buscar formas de pagamento com bandeiras expandidas
     $formas_pagamento_raw = $pdo->query("SELECT id, nome_forma, tipo, configuracoes FROM formas_pagamento WHERE id_admin = $id_admin AND status = 'Ativo' ORDER BY nome_forma ASC")->fetchAll(PDO::FETCH_ASSOC);
