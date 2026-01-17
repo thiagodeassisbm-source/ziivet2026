@@ -1,76 +1,138 @@
 <?php
+/**
+ * Emissão de NFS-e (Nota Fiscal de Serviço Eletrônica)
+ * Padrão Nacional NFS-e
+ */
+
 require_once '../../auth.php';
 require_once '../../config/configuracoes.php';
+require_once '../../vendor/autoload.php';
+
+use App\Services\NFSeService;
+
+header('Content-Type: application/json');
+
+$id_admin = $_SESSION['id_admin'] ?? 1;
+
+try {
+    // Receber ID da venda
+    $id_venda = $_POST['id_venda'] ?? 0;
+    
+    if (!$id_venda) {
+        throw new Exception('ID da venda não informado');
+    }
+    
+    // Buscar dados da venda
+    $stmt = $pdo->prepare("
+        SELECT v.*, c.nome as cliente_nome, c.cpf_cnpj, c.endereco, c.numero, 
+               c.bairro, c.cep, c.cidade, c.codigo_municipio
+        FROM vendas v
+        LEFT JOIN clientes c ON v.id_cliente = c.id
+        WHERE v.id = ? AND v.id_admin = ?
+    ");
+    $stmt->execute([$id_venda, $id_admin]);
+    $venda = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$venda) {
+        throw new Exception('Venda não encontrada');
+    }
+    
+    // Buscar itens de serviço da venda
+    $stmt = $pdo->prepare("
+        SELECT vi.*, p.produto as descricao, p.tipo
+        FROM vendas_itens vi
+        INNER JOIN produtos p ON vi.id_produto = p.id
+        WHERE vi.id_venda = ? AND p.tipo = 'servico'
+    ");
+    $stmt->execute([$id_venda]);
+    $itensServico = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    if (empty($itensServico)) {
+        throw new Exception('Nenhum serviço encontrado nesta venda');
+    }
+    
+    // Buscar configurações fiscais
+    $stmt = $pdo->prepare("SELECT * FROM configuracoes_fiscais WHERE id_admin = ?");
+    $stmt->execute([$id_admin]);
+    $config = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$config) {
+        throw new Exception('Configurações fiscais não encontradas');
+    }
+    
+    // Buscar dados da empresa
+    $stmt = $pdo->query("SELECT * FROM minha_empresa LIMIT 1");
+    $empresa = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$empresa) {
+        throw new Exception('Dados da empresa não encontrados');
+    }
+    
+    // Buscar configuração do serviço (NBS, Alíquota, etc)
+    $stmt = $pdo->prepare("SELECT * FROM nfse_servicos_config WHERE id_admin = ? LIMIT 1");
+    $stmt->execute([$id_admin]);
+    $servicoConfig = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$servicoConfig) {
+        throw new Exception('Configuração de serviço não encontrada. Configure em: NFS-e > Configurações > Serviços Prestados');
+    }
+    
+    // Calcular valores
+    $valorTotal = 0;
+    $descricaoServicos = [];
+    
+    foreach ($itensServico as $item) {
+        $valorTotal += $item['valor_total'];
+        $descricaoServicos[] = $item['descricao'];
+    }
+    
+    // Preparar dados para emissão
+    $numeroProximaDPS = ($config['num_ultima_nfse'] ?? 0) + 1;
+    
+    $dadosEmissao = [
+        'id_venda' => $id_venda,
+        'numero_dps' => str_pad($numeroProximaDPS, 15, '0', STR_PAD_LEFT),
+        'valor_servico' => $valorTotal,
+        'desconto' => $venda['desconto'] ?? 0,
+        'cliente' => [
+            'nome' => $venda['cliente_nome'],
+            'cpf_cnpj' => $venda['cpf_cnpj'],
+            'endereco' => $venda['endereco'] ?? '',
+            'numero' => $venda['numero'] ?? 'S/N',
+            'bairro' => $venda['bairro'] ?? '',
+            'cep' => $venda['cep'] ?? '',
+            'cidade' => $venda['cidade'] ?? 'Goiânia',
+            'codigo_municipio' => $venda['codigo_municipio'] ?? '5208707'
+        ],
+        'servico' => [
+            'codigo_nbs' => $servicoConfig['codigo_nbs'],
+            'descricao' => implode(', ', $descricaoServicos),
+            'aliquota_iss' => $servicoConfig['aliquota_iss']
+        ]
+    ];
+    
+    // Adicionar configurações
+    $configEmissao = [
+        'id_admin' => $id_admin,
+        'cnpj' => $empresa['cnpj'],
+        'inscricao_municipal' => $config['inscricao_municipal'],
+        'serie_nfse' => $config['serie_nfse'] ?? '1',
+        'ambiente' => $config['ambiente'] ?? 2
+    ];
+    
+    // Instanciar serviço de NFS-e
+    $nfseService = new NFSeService($configEmissao);
+    
+    // Emitir NFS-e
+    $resultado = $nfseService->emitir($dadosEmissao);
+    
+    // Retornar resultado
+    echo json_encode($resultado);
+    
+} catch (Exception $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
+}
 ?>
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emitir NFS-e | ZiipVet</title>
-    <link rel="stylesheet" href="../../css/style.css">
-    <link rel="stylesheet" href="../../css/menu.css">
-    <link rel="stylesheet" href="../../css/header.css">
-    <link rel="stylesheet" href="../../css/formularios.css"> <!-- Assuming exists or reuse style -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
-    <?php $path_prefix = '../../'; ?>
-    <aside class="sidebar-container"><?php include '../../menu/menulateral.php'; ?></aside>
-    <header class="top-header"><?php include '../../menu/faixa.php'; ?></header>
-
-    <main class="main-content">
-        <div class="form-header">
-             <h1><i class="fas fa-file-contract"></i> Emitir NFS-e</h1>
-        </div>
-
-        <form action="#" method="POST" style="background:#fff; padding:30px; border-radius:12px;">
-            <h3>Dados do Tomador</h3>
-            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:15px; margin-bottom:20px;">
-                <div>
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Cliente</label>
-                    <select name="cliente" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                        <option>Selecione um cliente...</option>
-                    </select>
-                </div>
-                <div>
-                     <label style="display:block; margin-bottom:5px; font-weight:bold;">CPF/CNPJ</label>
-                     <input type="text" disabled style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; background:#f9f9f9;">
-                </div>
-            </div>
-
-            <h3>Dados do Serviço</h3>
-            <div style="display:grid; grid-template-columns: 1fr; gap:15px; margin-bottom:20px;">
-                 <div>
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Descrição do Serviço</label>
-                    <textarea rows="4" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;"></textarea>
-                 </div>
-            </div>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-bottom:20px;">
-                 <div>
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Código Serviço (LC 116)</label>
-                    <input type="text" placeholder="Ex: 04.03" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                 </div>
-                 <div>
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Valor do Serviço (R$)</label>
-                    <input type="text" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                 </div>
-                 <div>
-                    <label style="display:block; margin-bottom:5px; font-weight:bold;">Retenção ISS?</label>
-                    <select style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-                        <option value="0">Não</option>
-                        <option value="1">Sim</option>
-                    </select>
-                 </div>
-            </div>
-
-            <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
-            
-            <button type="button" class="btn-ziip" style="background:#28a745; color:#fff; padding:12px 30px; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">
-                <i class="fas fa-paper-plane"></i> Emitir NFS-e
-            </button>
-        </form>
-    </main>
-</body>
-</html>
