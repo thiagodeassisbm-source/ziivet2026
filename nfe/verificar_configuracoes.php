@@ -25,6 +25,19 @@ $stmtEmp = $pdo->prepare("SELECT * FROM config_clinica WHERE id = 1");
 $stmtEmp->execute();
 $empresa = $stmtEmp->fetch(PDO::FETCH_ASSOC) ?: [];
 
+// Diagnóstico: validar se o autoload e o pacote do NFePHP existem no diretório esperado
+$autoloadPath = __DIR__ . '/../vendor/autoload.php';
+$autoloadExists = file_exists($autoloadPath);
+$nfephpDir = __DIR__ . '/../vendor/nfephp-org';
+$nfephpDirExists = is_dir($nfephpDir);
+
+// Verifica se o autoload parece ser do Composer (evita falso positivo do autoload mínimo)
+$autoloadIsComposer = false;
+if ($autoloadExists && is_readable($autoloadPath)) {
+    $chunk = @file_get_contents($autoloadPath, false, null, 0, 2500);
+    $autoloadIsComposer = is_string($chunk) && str_contains($chunk, 'ComposerAutoloaderInit');
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -183,7 +196,16 @@ $empresa = $stmtEmp->fetch(PDO::FETCH_ASSOC) ?: [];
                 </div>
                 <div class="check-text">
                     <h4>Biblioteca NFePHP</h4>
-                    <p><?= $nfephpOk ? 'Instalada e funcionando' : 'Não instalada - execute: composer install' ?></p>
+                    <p>
+                        <?= $nfephpOk ? 'Instalada e funcionando' : 'Não instalada - execute: composer install' ?>
+                        <br>
+                        <small style="color:#6b7280;">
+                            autoload.php: <?= $autoloadExists ? 'OK' : 'MISSING' ?>
+                            <?= $autoloadExists ? '(composer: ' . ($autoloadIsComposer ? 'SIM' : 'NÃO') . ')' : '' ?>
+                            <br>
+                            pasta vendor/nfephp-org: <?= $nfephpDirExists ? 'OK' : 'MISSING' ?>
+                        </small>
+                    </p>
                 </div>
             </div>
         </div>
