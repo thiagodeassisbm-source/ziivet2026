@@ -3,6 +3,10 @@ node_modules/
 vendor/
 !vendor/
 !vendor/autoload.php
+!vendor/composer/
+!vendor/nfephp-org/
+!vendor/justinrainbow/
+!vendor/psr/
 
 # Arquivos de Sistema / IDE
 .vscode/
