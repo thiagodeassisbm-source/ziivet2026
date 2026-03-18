@@ -48,6 +48,7 @@ class AuthService
     public function createSession(User $user): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            session_set_cookie_params(0, '/');
             session_start();
         }
 

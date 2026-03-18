@@ -16,6 +16,8 @@ require_once '../../config/configuracoes.php';
     <link rel="stylesheet" href="../../css/menu.css">
     <link rel="stylesheet" href="../../css/header.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
     <?php $path_prefix = '../../'; ?>
@@ -29,9 +31,9 @@ require_once '../../config/configuracoes.php';
     <main class="main-content">
         <div class="main-header" style="display:flex; justify-content:space-between; align-items:center;">
             <h1><i class="fas fa-file-contract"></i> Notas Fiscais de Serviço (NFS-e)</h1>
-            <a href="emitir_nfse.php" class="btn-ziip" style="background:#1e40af; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none;">
+            <button onclick="solicitarIdVenda()" class="btn-ziip" style="background:#1e40af; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none; border:none; cursor:pointer;">
                 <i class="fas fa-plus"></i> Emitir Nova NFS-e
-            </a>
+            </button>
         </div>
 
         <div class="content-box">
@@ -64,5 +66,34 @@ require_once '../../config/configuracoes.php';
              </table>
         </div>
     </main>
+    <script>
+    function solicitarIdVenda() {
+        Swal.fire({
+            title: 'Emitir nova NFS-e',
+            text: 'Informe o ID da Venda (Contendo Serviços):',
+            input: 'text',
+            inputAttributes: {
+                autocapitalize: 'off',
+                placeholder: 'Ex: 1234'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#1e40af',
+            showLoaderOnConfirm: true,
+            preConfirm: (id) => {
+                if (!id) {
+                    Swal.showValidationMessage('O ID da venda é obrigatório');
+                    return false;
+                }
+                return id;
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'emitir_nfse.php?id_venda=' + result.value;
+            }
+        });
+    }
+    </script>
 </body>
 </html>

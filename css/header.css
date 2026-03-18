@@ -10,7 +10,7 @@
    VARIÁVEIS ESPECÍFICAS DO HEADER
 ============================================================ */
 :root {
-    --header-height: 80px;
+    --header-height: 50px;
     --header-bg: #131c71;
     /* Alterado de Roxo para Azul */
     --header-text: #ffffff;
@@ -33,7 +33,7 @@ header.navbar {
     height: var(--header-height);
     position: fixed;
     top: 0;
-    left: 220px;
+    left: 260px;
     /* MENU FIXO */
     right: 0;
     z-index: 900;
@@ -83,9 +83,10 @@ header.navbar {
     border-radius: 12px;
     display: flex;
     align-items: center;
-    padding: 10px 20px;
+    padding: 6px 15px;
     width: 100%;
     transition: all 0.3s ease;
+    height: 36px;
 }
 
 .search-input-wrapper:hover,

@@ -20,14 +20,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$id_venda = filter_input(INPUT_POST, 'id_venda', FILTER_VALIDATE_INT);
-if (!$id_venda) {
+// Recebe ID da venda enviado pelo front
+$id_venda = isset($_POST['id_venda']) ? (int)$_POST['id_venda'] : 0;
+if ($id_venda <= 0) {
     echo json_encode(['success' => false, 'message' => 'ID da venda inválido.']);
     exit;
 }
 
 try {
     $nfcService = new NFCeService($pdo);
+
+    // Contexto da venda para diagnósticos (não altera lógica de emissão)
+    $stmtVenda = $pdo->prepare("SELECT id, nfce_status, nfce_chave, valor_total FROM vendas WHERE id = ?");
+    $stmtVenda->execute([$id_venda]);
+    $vendaInfo = $stmtVenda->fetch(PDO::FETCH_ASSOC) ?: null;
+
     $resultado = $nfcService->emitir($id_venda);
 
     if ($resultado['success']) {
@@ -87,7 +94,14 @@ try {
             'url' => $url_consulta
         ]);
     } else {
-        echo json_encode(['success' => false, 'message' => $resultado['message'] ?? 'Erro desconhecido.']);
+        $extra = '';
+        if ($vendaInfo) {
+            $extra = " | venda_id={$vendaInfo['id']} status_nfce=" . ($vendaInfo['nfce_status'] ?? '') . " chave_nfce=" . ($vendaInfo['nfce_chave'] ? substr((string)$vendaInfo['nfce_chave'], 0, 20) . '...' : '');
+        }
+        echo json_encode([
+            'success' => false,
+            'message' => ($resultado['message'] ?? 'Erro desconhecido.') . $extra
+        ]);
     }
 
 } catch (Exception $e) {

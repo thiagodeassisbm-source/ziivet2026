@@ -121,9 +121,15 @@ class VendaService
                 }
             }
 
-            // 3. Processar pagamento (se for venda paga)
-            if (!$isOrcamento && $statusPagamento === 'PAGO') {
-                $this->processarPagamento($idVenda, $dados);
+            // 3. Processar pagamento/lançamento financeiro
+            // - Para PAGO: sempre gera lançamento.
+            // - Para PENDENTE: só gera se o front enviou dados mínimos de caixa/forma,
+            //   evitando INSERT quebrar quando a venda foi apenas "salvar" sem recebimento.
+            if (!$isOrcamento) {
+                $temPagamentoInfo = !empty($dados['caixa_ativo'] ?? null) && !empty($dados['forma_pagamento'] ?? null);
+                if ($statusPagamento === 'PAGO' || $temPagamentoInfo) {
+                    $this->processarPagamento($idVenda, $dados, $statusPagamento);
+                }
             }
 
             $mensagem = $isOrcamento ? 'Orçamento salvo com sucesso!' : 'Venda realizada com sucesso!';
@@ -206,7 +212,7 @@ class VendaService
      * @param array $dados Dados do pagamento
      * @return void
      */
-    private function processarPagamento(int $idVenda, array $dados): void
+    private function processarPagamento(int $idVenda, array $dados, string $statusPagamento): void
     {
         $conn = $this->db->getConnection();
         
@@ -239,8 +245,10 @@ class VendaService
             $valorLiquido = $valorBruto - $valorTaxaDescontada;
         }
 
-        // Atualizar saldo da conta financeira
-        $this->atualizarSaldoConta($dados, $valorLiquido);
+        // Atualizar saldo da conta financeira somente quando houver recebimento efetivo
+        if ($statusPagamento === 'PAGO') {
+            $this->atualizarSaldoConta($dados, $valorLiquido);
+        }
 
         // Criar lançamento financeiro
         $qtdParcelas = $dados['qtd_parcelas'] ?? 1;
@@ -256,40 +264,52 @@ class VendaService
         }
 
         $idContaFinanceira = $this->determinarContaDestino($dados);
-        $idCaixa = $dados['caixa_ativo'] ?? null;
+        // `caixa_ativo` pode chegar como string; garantir CAST correto.
+        // Se vier vazio/indefinido, não gravar "0" (isso quebra a exibição de referência).
+        $idCaixaRaw = $dados['caixa_ativo'] ?? null;
+        $idCaixa = (is_string($idCaixaRaw) ? trim($idCaixaRaw) : $idCaixaRaw);
+        $idCaixa = ($idCaixa === '' || $idCaixa === null) ? null : (int)$idCaixa;
+        $observacoes = $dados['obs'] ?? null;
 
         // CORREÇÃO: Inserir na tabela CONTAS (pois lancamentos é uma VIEW) - Mapeamento para V4
-        $idFormaPgto = $dados['id_forma_pagamento'] ?? null;
+        // No front, o campo enviado é `forma_pagamento` (id da forma base).
+        $idFormaPgto = $dados['id_forma_pagamento'] ?? $dados['forma_pagamento'] ?? null;
         $idCliente = $dados['id_cliente'] ?? null;
+        $dataPagamento = ($statusPagamento === 'PAGO') ? date('Y-m-d H:i:s') : null;
         
         // Verificar se devemos adicionar id_venda (se a coluna existir na tabela contas)
         // Como não podemos garantir a estrutura aqui, vamos usar os campos padrão da tabela contas
         
         $sqlLancamento = "INSERT INTO contas (
-            id_admin, natureza, categoria, descricao, documento, 
-            vencimento, data_pagamento, valor_total, valor_parcela, 
-            status_baixa, id_caixa_referencia, data_cadastro,
-            id_forma_pgto, entidade_tipo, id_entidade, id_venda,
-            forma_pagamento_detalhe
-        ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)";
+            id_admin, natureza, categoria, descricao, documento,
+            forma_pagamento_detalhe, id_conta_origem,
+            vencimento, valor_total, valor_parcela, qtd_parcelas,
+            status_baixa, id_caixa_referencia, observacoes,
+            data_pagamento, data_cadastro,
+            id_forma_pgto, entidade_tipo, id_entidade, id_venda
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)";
         
         $stmt = $conn->prepare($sqlLancamento);
         $stmt->execute([
-            $dados['id_admin'],
-            'Receita',              // natureza (ENTRADA -> Receita)
-            'VENDAS',               // categoria
-            $descricaoLancamento,   // descricao
-            (string)$idVenda,       // documento
+            $dados['id_admin'],          // id_admin
+            'Receita',                   // natureza
+            'VENDAS',                    // categoria
+            $descricaoLancamento,        // descricao
+            (string)$idVenda,            // documento
+            $nomeFormaPagamento,         // forma_pagamento_detalhe
+            $idContaFinanceira,          // id_conta_origem
             $dados['data'] ?? date('Y-m-d'), // vencimento
-            $valorLiquido,          // valor_total
-            $valorLiquido,          // valor_parcela (venda a vista ou total)
-            'PAGO',                 // status_baixa
-            $idCaixa,               // id_caixa_referencia
-            $idFormaPgto,           // id_forma_pgto
-            'cliente',              // entidade_tipo
-            $idCliente,             // id_entidade
-            $idVenda,               // id_venda,
-            $nomeFormaPagamento     // forma_pagamento_detalhe
+            $valorLiquido,               // valor_total
+            $valorLiquido,               // valor_parcela
+            $qtdParcelas,                // qtd_parcelas
+            $statusPagamento,           // status_baixa
+            $idCaixa,                    // id_caixa_referencia
+            $observacoes,               // observacoes
+            $dataPagamento,             // data_pagamento
+            $idFormaPgto,                // id_forma_pgto
+            'cliente',                   // entidade_tipo
+            $idCliente,                  // id_entidade
+            $idVenda,                    // id_venda
         ]);
     }
 

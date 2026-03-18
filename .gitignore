@@ -32,6 +32,38 @@ ftp_check.txt
 ftp_check_v2.txt
 
 # Arquivos com Senhas (Segurança)
-deploy.js
 config/configuracoes.php
 .env
+
+# Espelhos do servidor / cópias de produção (não versionar)
+public_html/
+domains/
+_scratch/
+
+# Scripts e dumps temporários de debug/teste (não versionar)
+debug_*.js
+debug_*.php
+test_*.js
+final_*.js
+force_*.js
+read_*.js
+ls_*.js
+mod_*.js
+inspect_*.js
+verify_*.js
+deep_*.js
+list_*.js
+*_remote*.php
+LIVE_*.php
+EXTRACT_*.php
+REALLY_*.php
+*_TEST*.txt
+*_VERIFY_*.txt
+VERIFY_*.txt
+TESTE_*.txt
+temp_check_*.php
+out.html
+onde_estou.txt
+
+# Arquivos gerados de notas/XML (não versionar)
+nfe/xmls/

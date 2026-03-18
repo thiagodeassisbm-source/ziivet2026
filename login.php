@@ -6,8 +6,14 @@ use App\Core\Database;
 use App\Infrastructure\Repository\PDOUserRepository;
 use App\Application\Service\AuthService;
 use App\Security\RateLimiter;
+use Throwable;
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params(0, '/');
     session_start();
 }
 
@@ -55,16 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: dashboard.php");
             exit;
 
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             // Falha: Registrar tentativa
-            $rateLimiter->registerFailure($ip);
-            $erro = "Erro: " . $e->getMessage();
+            if (isset($rateLimiter)) {
+                $rateLimiter->registerFailure($ip);
+            }
+            $erro = "Erro Crítico: " . $e->getMessage() . " em " . $e->getFile() . ":" . $e->getLine();
         }
     } else {
         $erro = "Preencha todos os campos.";
     }
 }
 ?>
+<!-- V_LIVE_ROOT -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>

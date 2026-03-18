@@ -48,39 +48,48 @@ $usuario_logado = $_SESSION['nome'] ?? 'Sistema';
 // Middleware de Segurança
 Csrf::middleware();
 
-// BUSCAR ANIMAIS
-if (isset($_POST['acao']) && $_POST['acao'] === 'buscar_animais') {
-    ob_clean();
-    header('Content-Type: application/json');
-    
-    $id_cli = $_POST['id_cliente'] ?? '';
-    
-    try {
-        if (!empty($id_cli)) {
-            $sql = "SELECT p.id, p.nome_paciente, p.id_cliente, c.nome as nome_dono 
-                    FROM pacientes p 
-                    INNER JOIN clientes c ON p.id_cliente = c.id 
-                    WHERE p.id_cliente = :id_cli AND p.status = 'ATIVO' AND c.id_admin = :id_admin 
-                    ORDER BY p.nome_paciente ASC";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([':id_cli' => $id_cli, ':id_admin' => $id_admin]);
-        } else {
-            $sql = "SELECT p.id, p.nome_paciente, p.id_cliente, c.nome as nome_dono 
-                    FROM pacientes p 
-                    INNER JOIN clientes c ON p.id_cliente = c.id 
-                    WHERE c.id_admin = :id_admin AND p.status = 'ATIVO' 
-                    ORDER BY p.nome_paciente ASC LIMIT 500";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([':id_admin' => $id_admin]);
-        }
+    // BUSCAR ANIMAIS
+    if (isset($_REQUEST['acao']) && $_REQUEST['acao'] === 'buscar_animais') {
+        ob_clean();
+        header('Content-Type: application/json');
         
-        $animais = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['status' => 'success', 'dados' => $animais]);
-    } catch (Exception $e) {
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        $id_cli = $_REQUEST['id_cliente'] ?? '';
+        
+        try {
+            // Se o ID vier como 'null' string ou vazio, trata como vazio
+            if ($id_cli === 'null') $id_cli = '';
+
+            if ((string)$id_cli !== '') {
+                $sql = "SELECT p.id, p.nome_paciente, p.id_cliente, c.nome as nome_dono 
+                        FROM pacientes p 
+                        INNER JOIN clientes c ON p.id_cliente = c.id 
+                        WHERE p.id_cliente = :id_cli AND p.status = 'ATIVO' AND c.id_admin = :id_admin 
+                        ORDER BY p.nome_paciente ASC";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([':id_cli' => $id_cli, ':id_admin' => $id_admin]);
+            } else {
+                // Se nenhum cliente for enviado, mostramos VAZIO para evitar confusão,
+                // ou retornamos todos APENAS se explicitamente solicitado (o que não é o caso padrão do dropdown de cliente).
+                // Alteração para atender a queixa: "mostra todos os animais". 
+                // Vamos retornar vazio por padrão se não tiver cliente, exceto se for busca global (que não implementaremos agora para não quebrar fluxo).
+                // Mas para manter compatibilidade com "Consumidor Final" querendo ver tudo:
+                
+                $sql = "SELECT p.id, p.nome_paciente, p.id_cliente, c.nome as nome_dono 
+                        FROM pacientes p 
+                        INNER JOIN clientes c ON p.id_cliente = c.id 
+                        WHERE c.id_admin = :id_admin AND p.status = 'ATIVO' 
+                        ORDER BY p.nome_paciente ASC LIMIT 500";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([':id_admin' => $id_admin]);
+            }
+            
+            $animais = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['status' => 'success', 'dados' => $animais, 'debug_id' => $id_cli]);
+        } catch (Exception $e) {
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+        exit;
     }
-    exit;
-}
 
 // FECHAR CAIXA (OPERADOR)
 if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa_simples') {
@@ -167,12 +176,27 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa_simples') {
             
             // Chamar Service Layer (ele gerencia TUDO: transação, validações, estoque, financeiro)
             $resultado = $vendaService->fecharVenda($dados);
-            
+
+            // Garantir que sempre retornamos o ID real da venda na resposta
+            $idNovaVenda = isset($resultado['id']) ? (int)$resultado['id'] : 0;
+            if ($idNovaVenda <= 0) {
+                try {
+                    $stmtUltima = $pdo->prepare("SELECT id FROM vendas WHERE id_admin = ? ORDER BY id DESC LIMIT 1");
+                    $stmtUltima->execute([$id_admin]);
+                    $rowUltima = $stmtUltima->fetch(PDO::FETCH_ASSOC);
+                    if ($rowUltima && !empty($rowUltima['id'])) {
+                        $idNovaVenda = (int)$rowUltima['id'];
+                    }
+                } catch (Exception $e) {
+                    // Se falhar, seguimos sem ID e o front exibirá erro adequado na emissão
+                }
+            }
+
             if ($resultado['success']) {
                 echo json_encode([
                     'status' => 'success', 
                     'message' => $resultado['message'], 
-                    'id' => $resultado['id'],
+                    'id' => $idNovaVenda,
                     'tem_produto' => $tem_produto,
                     'tem_servico' => $tem_servico
                 ]);
@@ -198,6 +222,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa_simples') {
 // CARREGAMENTO INICIAL
 // ==========================================================
 $titulo_pagina = "Ponto de Venda (PDV)";
+$deploy_id = "DEPLOY_PDV_2026-03-18_01";
 
 try {
     $clientes = $pdo->query("SELECT id, nome FROM clientes WHERE id_admin = $id_admin AND status = 'ATIVO' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -323,7 +348,7 @@ try {
             $sql_vendas = "SELECT v.id, v.valor_total, v.status_pagamento, v.tipo_movimento, v.usuario_vendedor, c.nome as nome_cliente 
                           FROM vendas v 
                           LEFT JOIN clientes c ON v.id_cliente = c.id 
-                          INNER JOIN lancamentos l ON v.id = l.id_venda
+                          INNER JOIN contas l ON v.id = l.id_venda
                           WHERE v.id_admin = ? 
                           AND l.id_caixa_referencia = ?
                           AND v.status_pagamento = 'PAGO'
@@ -356,7 +381,7 @@ try {
             $sql_vendas = "SELECT v.id, v.valor_total, v.status_pagamento, v.tipo_movimento, v.usuario_vendedor, c.nome as nome_cliente 
                           FROM vendas v 
                           LEFT JOIN clientes c ON v.id_cliente = c.id 
-                          INNER JOIN lancamentos l ON v.id = l.id_venda
+                          INNER JOIN contas l ON v.id = l.id_venda
                           WHERE v.id_admin = ? 
                           AND l.id_caixa_referencia = ?
                           AND v.status_pagamento = 'PAGO'
@@ -373,6 +398,7 @@ try {
     die("Erro ao carregar dados iniciais: " . $e->getMessage());
 }
 ?>
+<!-- V_LIVE_DOMAINS -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -401,6 +427,7 @@ try {
             gap: 20px;
             max-width: 100%;
             overflow-x: hidden;
+            margin-top: 0;
         }
         
         @media (max-width: 1400px) {
@@ -887,54 +914,46 @@ try {
     </style>
 </head>
 <body>
+<!-- <?= $deploy_id ?> -->
 
     <aside class="sidebar-container"><?php include 'menu/menulateral.php'; ?></aside>
     <header class="top-header"><?php include 'menu/faixa.php'; ?></header>
 
     <main class="main-content">
-        
-        <div class="form-header" style="grid-column: 1 / -1;">
-            <h1 class="form-title">
-                <i class="fas fa-cash-register"></i>
-                Ponto de Venda (PDV)
-            </h1>
-            
-            <?php if ($caixa_usuario_aberto): ?>
-                <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 10px 20px; border-radius: 10px; display: inline-flex; align-items: center; gap: 10px; margin-left: 20px; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);">
-                    <i class="fas fa-check-circle" style="font-size: 20px;"></i>
-                    <div style="text-align: left;">
-                        <div style="font-size: 11px; opacity: 0.9; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Caixa Aberto</div>
-                        <div style="font-size: 14px; font-weight: 700;">#<?= $caixa_usuario_aberto['id'] ?> - <?= $caixa_usuario_aberto['usuario_nome'] ?></div>
-                    </div>
-                </div>
-            <?php else: ?>
-                <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: 10px 20px; border-radius: 10px; display: inline-flex; align-items: center; gap: 10px; margin-left: 20px; box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);">
-                    <i class="fas fa-exclamation-triangle" style="font-size: 20px;"></i>
-                    <div style="text-align: left;">
-                        <div style="font-size: 11px; opacity: 0.9; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Atenção</div>
-                        <div style="font-size: 14px; font-weight: 700;">Nenhum caixa aberto</div>
-                    </div>
-                </div>
-            <?php endif; ?>
-            
-            <?php if (isset($_GET['debug'])): ?>
-                <div style="background: #fff; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 12px; grid-column: 1 / -1;">
-                    <strong>🔍 DEBUG DE SESSÃO:</strong><br>
-                    ID Admin: <?= $id_admin ?><br>
-                    ID Usuário Detectado: <?= $id_usuario ?? 'NÃO ENCONTRADO' ?><br>
-                    Nome: <?= $_SESSION['nome'] ?? 'N/A' ?><br>
-                    Email: <?= $_SESSION['email'] ?? 'N/A' ?><br>
-                    <strong>Variáveis de Sessão Disponíveis:</strong> <?= implode(', ', array_keys($_SESSION)) ?><br>
-                    <strong>Caixa Encontrado:</strong> <?= $caixa_usuario_aberto ? 'SIM (#'.$caixa_usuario_aberto['id'].')' : 'NÃO' ?>
-                </div>
-            <?php endif; ?>
-        </div>
+        <?php if (isset($_GET['debug'])): ?>
+            <div style="background: #fff; padding: 10px; border-radius: 5px; margin: 0 0 12px 0; font-size: 12px;">
+                <strong>🔍 DEBUG DE SESSÃO:</strong><br>
+                ID Admin: <?= $id_admin ?><br>
+                ID Usuário Detectado: <?= $id_usuario ?? 'NÃO ENCONTRADO' ?><br>
+                Nome: <?= $_SESSION['nome'] ?? 'N/A' ?><br>
+                Email: <?= $_SESSION['email'] ?? 'N/A' ?><br>
+                <strong>Variáveis de Sessão Disponíveis:</strong> <?= implode(', ', array_keys($_SESSION)) ?><br>
+                <strong>Caixa Encontrado:</strong> <?= $caixa_usuario_aberto ? 'SIM (#'.$caixa_usuario_aberto['id'].')' : 'NÃO' ?>
+            </div>
+        <?php endif; ?>
 
         <div class="pdv-layout">
             <div class="venda-card">
-                <div class="venda-header">
-                    <i class="fas fa-shopping-cart"></i>
-                    <h2>Nova Venda</h2>
+                <div class="venda-header" style="justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-shopping-cart"></i>
+                        <h2>Ponto de Venda - Nova Venda</h2>
+                    </div>
+                    
+                    <?php if ($caixa_usuario_aberto): ?>
+                        <div style="background: rgba(255, 255, 255, 0.2); color: white; padding: 5px 15px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; margin-left: auto;">
+                            <i class="fas fa-check-circle"></i>
+                            <div style="text-align: right;">
+                                <div style="font-size: 10px; opacity: 0.9; text-transform: uppercase;">Caixa Aberto</div>
+                                <div style="font-size: 12px; font-weight: 700;">#<?= $caixa_usuario_aberto['id'] ?> - <?= explode(' ', $caixa_usuario_aberto['usuario_nome'])[0] ?></div>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div style="background: rgba(220, 53, 69, 0.8); color: white; padding: 5px 15px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; margin-left: auto;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span style="font-size: 12px; font-weight: 700;">Fechado</span>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="venda-body">
@@ -1166,11 +1185,12 @@ try {
     <?php include 'vendas/registrar_recebimento.php'; ?>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="js/csrf_protection.js"></script>
+    <script src="js/csrf_protection_v9.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
+        console.log("<?= $deploy_id ?>");
         let isSystemChange = false; 
         let itensVenda = [];
 
@@ -1227,15 +1247,16 @@ try {
             // Feedback de carregamento
             animalSelect.prop('disabled', true);
             
-            var dataRequest = { acao: 'buscar_animais' };
-            if (idCliente) {
-                dataRequest.id_cliente = idCliente;
-            }
+            var dataRequest = { 
+                acao: 'buscar_animais',
+                id_cliente: idCliente // Envia sempre, mesmo se vazio
+            };
 
             $.ajax({
-                url: 'vendas.php', 
+                url: 'api/buscar_animais_venda.php', // URL Dedicada (Correção 403)
                 type: 'POST', 
                 dataType: 'json',
+                cache: false,
                 data: dataRequest,
                 success: function(response) {
                     // Limpar e adicionar opção padrão
@@ -1372,8 +1393,17 @@ try {
                 allowOutsideClick: false,
                 didOpen: () => Swal.showLoading()
             });
+
+            // ✅ INCLUIR TOKEN CSRF
+            let csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+            if (!csrfToken) {
+                csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            }
             
-            $.post('nfe/emitir_nota.php', { id_venda: idVenda }, function(resNfe) {
+            $.post('/app/nfe/emitir_nota.php', { 
+                id_venda: idVenda,
+                csrf_token: csrfToken 
+            }, function(resNfe) {
                 if (resNfe.success) {
                     Swal.fire({
                         title: 'NFC-e Emitida!',
@@ -1407,8 +1437,17 @@ try {
                 allowOutsideClick: false,
                 didOpen: () => Swal.showLoading()
             });
+
+            // ✅ INCLUIR TOKEN CSRF
+            let csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+            if (!csrfToken) {
+                csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            }
             
-            $.post('nfe/nfse/emitir_nfse.php', { id_venda: idVenda }, function(resNfse) {
+            $.post('/app/nfe/nfse/emitir_nfse.php', { 
+                id_venda: idVenda,
+                csrf_token: csrfToken
+            }, function(resNfse) {
                 if (resNfse.success) {
                     Swal.fire({
                         title: 'NFS-e Emitida!',

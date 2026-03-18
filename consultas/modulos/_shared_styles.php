@@ -3,7 +3,7 @@
     :root { 
         --fundo: #ecf0f5; --primaria: #1c329f; --sucesso: #28a745; --info: #17a2b8;
         --warning: #ffc107; --danger: #dc3545; --borda: #d2d6de;
-        --sidebar-collapsed: 75px; --sidebar-expanded: 260px; --header-height: 80px;
+        --sidebar-collapsed: 75px; --sidebar-expanded: 260px; --header-height: 60px;
         --transition: 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         --ia-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
@@ -14,17 +14,17 @@
     }
     
     aside.sidebar-container { 
-        position: fixed; left: 0; top: 0; height: 100vh; width: 220px; 
+        position: fixed; left: 0; top: 0; height: 100vh; width: 260px; 
         z-index: 1000; background: #fff; 
         box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
     }
     header.top-header { 
-        position: fixed; top: 0; left: 220px; right: 0; 
+        position: fixed; top: 0; left: 260px; right: 0; 
         height: var(--header-height); z-index: 900; margin: 0 !important;
     }
     main.main-content { 
-        margin-left: 220px; 
-        padding: calc(var(--header-height) + 25px) 25px 40px; 
+        margin-left: 260px; 
+        padding: calc(var(--header-height) + 30px) 25px 40px; 
     }
     
     .console-grid { display: grid; grid-template-columns: 1fr 380px; gap: 25px; align-items: start; }

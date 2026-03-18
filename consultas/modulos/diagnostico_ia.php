@@ -371,7 +371,7 @@ function realizarDiagnosticoIA() {
     $('#resultadoDiagnosticoIA').removeClass('visible');
 
     $.ajax({
-        url: 'consultas/processar_diagnostico.php',
+        url: 'processar_diagnostico.php',
         method: 'POST',
         data: formData,
         dataType: 'json',

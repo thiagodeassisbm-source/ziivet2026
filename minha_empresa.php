@@ -3,7 +3,7 @@
  * =========================================================================================
  * ZIIPVET - CONFIGURAÇÃO MINHA EMPRESA
  * ARQUIVO: minha_empresa.php
- * VERSÃO: 18.0.0 - LAYOUT BLINDADO V16.2
+ * VERSÃO: 18.1.0 - LAYOUT NORMALIZADO 2026
  * =========================================================================================
  */
 require_once 'auth.php';
@@ -24,38 +24,29 @@ $status_feedback = "";
 // ==============================================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
-        // Recupera o caminho da logo atual
         $logo_path = $_POST['logo_atual'] ?? '';
 
-        // Processar Upload da Logomarca via Serviço Seguro
         if (isset($_FILES['logomarca']) && $_FILES['logomarca']['error'] === UPLOAD_ERR_OK) {
             try {
                 $uploader = new FileUploaderService();
                 $diretorio = 'uploads/empresa/';
-                
-                // Tipos permitidos: JPEG, PNG, WEBP (conforme solicitado no prompt 1.2)
                 $tipos_permitidos = ['image/jpeg', 'image/png', 'image/webp'];
-                
                 $nome_logo = $uploader->upload($_FILES['logomarca'], $diretorio, $tipos_permitidos);
                 $logo_path = $diretorio . $nome_logo;
                 
-                // Deletar logo antiga se existir e for diferente da nova
                 if (!empty($_POST['logo_atual']) && file_exists($_POST['logo_atual'])) {
                     unlink($_POST['logo_atual']);
                 }
             } catch (Exception $e) {
                 $msg_feedback = "Erro no upload: " . $e->getMessage();
                 $status_feedback = "error";
-                // Interromper se o upload falhar? Geralmente sim para evitar salvar dados parciais
                 throw $e; 
             }
         }
 
-        // Verificar se já existe registro
         $existe = $pdo->query("SELECT COUNT(*) FROM minha_empresa WHERE id = 1")->fetchColumn();
 
         if ($existe > 0) {
-            // UPDATE
             $sql = "UPDATE minha_empresa SET 
                     razao_social = :razao,
                     nome_fantasia = :fantasia,
@@ -67,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     cidade = :cidade
                     WHERE id = 1";
         } else {
-            // INSERT
             $sql = "INSERT INTO minha_empresa (id, razao_social, nome_fantasia, cnpj, telefone, logomarca, endereco, bairro, cidade) 
                     VALUES (1, :razao, :fantasia, :cnpj, :telefone, :logo, :endereco, :bairro, :cidade)";
         }
@@ -107,9 +97,7 @@ try {
         $pdo->exec("INSERT INTO minha_empresa (id, razao_social, nome_fantasia) VALUES (1, 'Sua Empresa LTDA', 'Sua Empresa')");
         $empresa = $pdo->query("SELECT * FROM minha_empresa WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
     }
-} catch (PDOException $e) {
-    $empresa = [];
-}
+} catch (PDOException $e) { $empresa = []; }
 
 $titulo_pagina = "Minha Empresa";
 ?>
@@ -118,265 +106,158 @@ $titulo_pagina = "Minha Empresa";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $titulo_pagina ?> | ZiipVet</title>
+    <title><?=$titulo_pagina?> | ZiipVet</title>
     
-    <base href="https://www.lepetboutique.com.br/app/">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Exo:wght@300;400;600;700;800&family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS CENTRALIZADO -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/menu.css">
+    <link rel="stylesheet" href="css/header.css">
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
-    :root { 
-        --fundo: #ecf0f5; 
-        --primaria: #1c329f; 
-        --sucesso: #28a745; 
-        --borda: #d2d6de; 
-        --sidebar-collapsed: 75px; 
-        --sidebar-expanded: 260px; 
-        --header-height: 80px; 
-        --transition: 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-    }
+        .card-empresa { 
+            background: #fff; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            border-top: 3px solid var(--cor-principal);
+            margin-bottom: 30px;
+        }
+        
+        .page-header-title {
+            font-size: 26px;
+            margin-bottom: 25px;
+            color: #444;
+            font-weight: 700;
+            font-family: 'Exo', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body { 
-        font-family: 'Open Sans', sans-serif; 
-        background-color: var(--fundo); 
-        font-size: 15px; 
-        color: #333; 
-        overflow-x: hidden;
-        line-height: 1.6;
-    }
+        .page-header-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--cor-principal), #8e44ad);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
 
-    /* Layout V16.2 Estruturado e Blindado - FIXO 220PX */
-    aside.sidebar-container { 
-        position: fixed; left: 0; top: 0; height: 100vh; width: 220px; 
-        z-index: 1000; background: #fff; 
-        box-shadow: 2px 0 5px rgba(0,0,0,0.05); 
-    }
-    
-    header.top-header { 
-        position: fixed; top: 0; left: 220px; right: 0; 
-        height: var(--header-height); z-index: 900;
-        background: #fff; border-bottom: 1px solid #eee;
-        margin: 0 !important;
-    }
-    
-    main.main-content { 
-        margin-left: 220px; 
-        padding: calc(var(--header-height) + 30px) 30px 40px; 
-        width: auto;
-    }
+        .logo-section {
+            display: flex; align-items: center; gap: 30px; 
+            background: #f8f9fa; padding: 30px; border-radius: 10px; 
+            border: 1px solid #e9ecef; margin-bottom: 35px;
+        }
+        
+        .logo-preview { 
+            width: 150px; height: 150px; object-fit: contain; 
+            background: #fff; border-radius: 10px; border: 2px solid #ddd; padding: 15px;
+        }
 
-    /* Card Padronizado - AGORA EM TELA CHEIA */
-    .card-empresa { 
-        background: #fff; 
-        padding: 40px; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05); 
-        border-top: 5px solid var(--primaria);
-        width: 100%;           /* Ocupa 100% do main-content */
-        max-width: none;       /* Removido o limite de 1200px */
-        margin: 0;             /* Removido margin auto */
-    }
-    
-    .card-empresa h2 {
-        color: #2c3e50; 
-        margin-bottom: 30px; 
-        font-weight: 700; 
-        font-size: 26px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-    }
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .full-width { grid-column: span 3; }
+        .half-width { grid-column: span 2; }
 
-    /* Logo Preview Section */
-    .logo-section {
-        display: flex; 
-        align-items: center; 
-        gap: 30px; 
-        background: #f8f9fa; 
-        padding: 30px; 
-        border-radius: 10px; 
-        border: 1px solid #e9ecef; 
-        margin-bottom: 35px;
-    }
-    
-    .logo-preview { 
-        width: 150px; 
-        height: 150px; 
-        object-fit: contain; 
-        background: #fff; 
-        border-radius: 10px; 
-        border: 2px solid var(--borda);
-        padding: 15px;
-    }
+        label { font-size: 13px; font-weight: 700; color: #2c3e50; text-transform: uppercase; letter-spacing: 0.5px; }
+        input { padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; background: #fff; transition: all 0.3s ease; }
+        input:focus { border-color: var(--cor-principal); box-shadow: 0 0 0 3px rgba(98, 37, 153, 0.1); }
 
-    /* Form Grid */
-    .form-grid { 
-        display: grid; 
-        grid-template-columns: repeat(3, 1fr); 
-        gap: 25px; 
-    }
-    
-    .form-group { 
-        display: flex; 
-        flex-direction: column; 
-        gap: 8px; 
-    }
-    
-    .full-width { grid-column: span 3; }
-    .half-width { grid-column: span 2; }
+        .info-box {
+            background: #e7f3ff; border-left: 4px solid var(--cor-principal);
+            padding: 15px 20px; border-radius: 6px; margin-bottom: 30px;
+            display: flex; align-items: center; gap: 15px; font-weight: 600;
+        }
 
-    label { 
-        font-size: 13px; 
-        font-weight: 700; 
-        color: #2c3e50; 
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    input { 
-        padding: 14px 16px; 
-        border: 1px solid var(--borda); 
-        border-radius: 8px; 
-        font-size: 15px; 
-        outline: none; 
-        background: #fff; 
-        transition: all 0.3s ease;
-    }
-    
-    input:focus { 
-        border-color: var(--primaria); 
-        box-shadow: 0 0 0 3px rgba(28, 50, 159, 0.1); 
-    }
-
-    .info-box {
-        background: #e7f3ff;
-        border-left: 4px solid var(--primaria);
-        padding: 15px 20px;
-        border-radius: 6px;
-        margin-bottom: 30px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        font-weight: 600;
-    }
-
-    /* Botão Salvar Profissional */
-    .btn-salvar { 
-        background: linear-gradient(135deg, var(--sucesso) 0%, #20c997 100%);
-        color: #fff; 
-        border: none; 
-        padding: 18px 45px; 
-        border-radius: 8px; 
-        font-weight: 800; 
-        font-size: 14px; 
-        cursor: pointer; 
-        text-transform: uppercase; 
-        margin-top: 35px; 
-        transition: all 0.3s ease; 
-        display: flex; 
-        align-items: center; 
-        gap: 12px;
-        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2);
-    }
-    
-    .btn-salvar:hover { 
-        transform: translateY(-2px); 
-        box-shadow: 0 6px 16px rgba(40, 167, 69, 0.3); 
-        filter: brightness(1.1);
-    }
-
-    .faixa-superior { width: 100% !important; margin: 0 !important; border-radius: 0 0 0 30px !important; }
-</style>
+        .btn-salvar { 
+            background: var(--cor-principal); color: #fff; border: none; padding: 15px 35px; 
+            border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; 
+            text-transform: uppercase; margin-top: 25px; transition: all 0.3s ease; 
+            display: inline-flex; align-items: center; gap: 10px;
+        }
+        .btn-salvar:hover { background: #4a1c74; transform: translateY(-2px); }
+        
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .full-width, .half-width { grid-column: span 1; }
+            .logo-section { flex-direction: column; text-align: center; }
+        }
+    </style>
 </head>
 <body>
 
-    <aside class="sidebar-container"><?php include 'menu/menulateral.php'; ?></aside>
-    <header class="top-header"><?php include 'menu/faixa.php'; ?></header>
+    <aside class="sidebar-container">
+        <?php include 'menu/menulateral.php'; ?>
+    </aside>
+
+    <header class="top-header">
+        <?php include 'menu/faixa.php'; ?>
+    </header>
 
     <main class="main-content">
+        <h2 class="page-header-title">
+            <i class="fas fa-building"></i> 
+            Dados da Empresa
+        </h2>
+        
         <div class="card-empresa">
-            <h2>
-                <i class="fas fa-building" style="color: var(--primaria);"></i> 
-                Dados da Empresa
-            </h2>
-            
             <div class="info-box">
-                <i class="fas fa-info-circle" style="color: var(--primaria); font-size: 20px;"></i>
-                Estes dados serão utilizados em relatórios, notas fiscais e documentos oficiais emitidos pelo ZiipVet.
+                <i class="fas fa-info-circle" style="color: var(--cor-principal); font-size: 20px;"></i>
+                Estes dados serão utilizados em relatórios, notas fiscais e documentos oficiais.
             </div>
             
             <form action="minha_empresa.php" method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="logo_atual" value="<?= htmlspecialchars($empresa['logomarca'] ?? '') ?>">
 
                 <div class="logo-section">
-                    <img id="preview" 
-                         src="<?= !empty($empresa['logomarca']) ? $empresa['logomarca'] : 'https://via.placeholder.com/150/1c329f/FFFFFF?text=Logo' ?>" 
-                         class="logo-preview"
-                         alt="Logo da Empresa">
+                    <img id="preview" src="<?= !empty($empresa['logomarca']) ? $empresa['logomarca'] : 'https://via.placeholder.com/150' ?>" class="logo-preview">
                     <div class="form-group" style="flex: 1;">
                         <label>Logomarca da Clínica</label>
-                        <input type="file" 
-                               name="logomarca" 
-                               accept="image/*" 
-                               onchange="previewImage(this)" 
-                               style="padding: 12px; border-style: dashed; font-size: 14px; background: #fff; border: 2px dashed var(--borda);">
-                        <small style="color: #888; font-size: 13px; margin-top: 5px; font-weight: 500;">
-                            <i class="fas fa-image"></i> PNG, JPG ou GIF. Recomendado: 300x300px.
-                        </small>
+                        <input type="file" name="logomarca" accept="image/*" onchange="previewImage(this)" style="padding: 10px; border: 2px dashed #ddd;">
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group half-width">
-                        <label for="razao_social">Razão Social *</label>
-                        <input type="text" id="razao_social" name="razao_social" 
-                               value="<?= htmlspecialchars($empresa['razao_social'] ?? '') ?>" 
-                               required placeholder="Ex: Clínica Veterinária ZiipVet LTDA">
+                        <label>Razão Social *</label>
+                        <input type="text" name="razao_social" value="<?= htmlspecialchars($empresa['razao_social'] ?? '') ?>" required>
                     </div>
                     <div class="form-group">
-                        <label for="cnpj">CNPJ</label>
-                        <input type="text" id="cnpj" name="cnpj" 
-                               value="<?= htmlspecialchars($empresa['cnpj'] ?? '') ?>" 
-                               placeholder="00.000.000/0000-00" maxlength="18">
+                        <label>CNPJ</label>
+                        <input type="text" name="cnpj" value="<?= htmlspecialchars($empresa['cnpj'] ?? '') ?>">
                     </div>
 
                     <div class="form-group half-width">
-                        <label for="nome_fantasia">Nome Fantasia *</label>
-                        <input type="text" id="nome_fantasia" name="nome_fantasia" 
-                               value="<?= htmlspecialchars($empresa['nome_fantasia'] ?? '') ?>" 
-                               required placeholder="Ex: ZiipVet">
+                        <label>Nome Fantasia *</label>
+                        <input type="text" name="nome_fantasia" value="<?= htmlspecialchars($empresa['nome_fantasia'] ?? '') ?>" required>
                     </div>
                     <div class="form-group">
-                        <label for="telefone">Telefone / WhatsApp</label>
-                        <input type="text" id="telefone" name="telefone" 
-                               value="<?= htmlspecialchars($empresa['telefone'] ?? '') ?>" 
-                               placeholder="(00) 00000-0000" maxlength="15">
+                        <label>Telefone</label>
+                        <input type="text" name="telefone" value="<?= htmlspecialchars($empresa['telefone'] ?? '') ?>">
                     </div>
 
                     <div class="form-group full-width">
-                        <label for="endereco">Endereço Completo</label>
-                        <input type="text" id="endereco" name="endereco" 
-                               value="<?= htmlspecialchars($empresa['endereco'] ?? '') ?>" 
-                               placeholder="Rua, Número, Complemento">
+Rede, Número, Complemento">
+                        <label>Endereço Completo</label>
+                        <input type="text" name="endereco" value="<?= htmlspecialchars($empresa['endereco'] ?? '') ?>">
                     </div>
 
                     <div class="form-group">
-                        <label for="bairro">Bairro</label>
-                        <input type="text" id="bairro" name="bairro" 
-                               value="<?= htmlspecialchars($empresa['bairro'] ?? '') ?>" 
-                               placeholder="Ex: Centro">
+                        <label>Bairro</label>
+                        <input type="text" name="bairro" value="<?= htmlspecialchars($empresa['bairro'] ?? '') ?>">
                     </div>
                     <div class="form-group half-width">
-                        <label for="cidade">Cidade / UF</label>
-                        <input type="text" id="cidade" name="cidade" 
-                               value="<?= htmlspecialchars($empresa['cidade'] ?? '') ?>" 
-                               placeholder="Ex: Goiânia / GO">
+                        <label>Cidade / UF</label>
+                        <input type="text" name="cidade" value="<?= htmlspecialchars($empresa['cidade'] ?? '') ?>">
                     </div>
                 </div>
 
@@ -385,8 +266,6 @@ $titulo_pagina = "Minha Empresa";
                 </button>
             </form>
         </div>
-        
-        <div style="height: 50px;"></div>
     </main>
 
     <script>
@@ -394,20 +273,16 @@ $titulo_pagina = "Minha Empresa";
             const preview = document.getElementById('preview');
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                }
+                reader.onload = function(e) { preview.src = e.target.result; }
                 reader.readAsDataURL(input.files[0]);
             }
         }
-
         <?php if ($msg_feedback): ?>
         Swal.fire({
             title: '<?= $status_feedback == "success" ? "Sucesso!" : "Erro!" ?>',
             text: '<?= addslashes($msg_feedback) ?>',
             icon: '<?= $status_feedback ?>',
-            confirmButtonColor: '#1c329f',
-            confirmButtonText: 'OK'
+            confirmButtonColor: '#622599'
         });
         <?php endif; ?>
     </script>

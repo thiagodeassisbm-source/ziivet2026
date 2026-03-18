@@ -8,12 +8,13 @@
 /* ============================================================
    IMPORTAÇÃO DE FONTES
 ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Exo:wght@300;400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 /* ============================================================
    VARIÁVEIS CSS (CORES E CONFIGURAÇÕES)
 ============================================================ */
+/* css/style.css UPDATE */
 :root {
     /* Cores Principais - Roxo Auvo/Ziip */
     --cor-principal: #622599;
@@ -33,9 +34,9 @@
     --texto-medium: #555;
     --texto-light: #777;
 
-    /* Dimensões do Layout - FIXO 220PX */
-    --sidebar-width: 220px;
-    --header-height: 80px;
+    /* Dimensões do Layout - FIXO 260PX */
+    --sidebar-width: 260px;
+    --header-height: 50px;
     --transition-speed: 0s;
     /* Removendo transição de layout */
 
@@ -43,6 +44,27 @@
     --border-radius: 4px;
     --box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
     --box-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* css/header.css UPDATE */
+:root {
+    --header-height: 60px;
+    --header-bg: #131c71;
+    /* Alterado de Roxo para Azul */
+    --header-text: #ffffff;
+    --header-shadow: 0 4px 20px rgba(19, 28, 113, 0.2);
+    /* Sombra ajustada para o tom azul */
+}
+
+/* css/menu.css UPDATE */
+.sidebar-header {
+    display: flex !important;
+    align-items: center !important;
+    padding: 20px 15px !important;
+    min-height: 60px !important;
+    background: #0e1552 !important;
+    flex-shrink: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ============================================================
@@ -55,7 +77,7 @@
 }
 
 body {
-    font-family: 'Source Sans Pro', 'Poppins', sans-serif;
+    font-family: 'Exo', 'Poppins', sans-serif;
     background-color: var(--cor-fundo);
     color: var(--texto-dark);
     min-height: 100vh;
@@ -71,7 +93,7 @@ textarea,
 button,
 .form-control,
 .btn {
-    font-family: 'Source Sans Pro', sans-serif !important;
+    font-family: 'Exo', sans-serif !important;
 }
 
 /* ============================================================

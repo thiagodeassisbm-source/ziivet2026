@@ -152,6 +152,10 @@ $titulo_pagina = $id_cliente ? "Editar Cliente" : "Novo Cliente";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $titulo_pagina ?> | ZiipVet</title>
     
+    <!-- DEPLOY_VERIFY_V5 -->
+    <meta name="csrf-token" content="<?= \App\Utils\Csrf::getToken() ?>">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
     <!-- CSS CENTRALIZADO -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/menu.css">
@@ -160,6 +164,8 @@ $titulo_pagina = $id_cliente ? "Editar Cliente" : "Novo Cliente";
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     <style>
         /* CSS PARA AS ABAS */
@@ -599,6 +605,7 @@ $titulo_pagina = $id_cliente ? "Editar Cliente" : "Novo Cliente";
         </form>
     </main>
 
+    <script src="js/csrf_protection.js?v=20260316_v7_final"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         // SISTEMA DE ABAS
@@ -673,6 +680,12 @@ $titulo_pagina = $id_cliente ? "Editar Cliente" : "Novo Cliente";
             btn.disabled = true;
 
             const formData = new FormData(document.getElementById('formCliente'));
+            
+            // Adiciona o token CSRF manualmente para garantir o envio
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (csrfToken) {
+                formData.append('csrf_token', csrfToken);
+            }
             
             try {
                 const res = await fetch('clientes.php', { method: 'POST', body: formData });

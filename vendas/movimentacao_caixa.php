@@ -131,8 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 }
 
 // LISTAGEM E FILTROS
-$data_inicio = $_GET['data_inicio'] ?? date('Y-m-01');
-$data_fim = $_GET['data_fim'] ?? date('Y-m-t');
+$data_filtro = $_GET['data_filtro'] ?? '';
+$filtro_id_caixa = $_GET['id_caixa'] ?? '';
+$filtro_cod_caixa = $_GET['cod_caixa'] ?? '';
 $filtro_usuario = $_GET['id_usuario'] ?? '';
 $filtro_status = $_GET['status'] ?? '';
 
@@ -147,11 +148,24 @@ $sql = "SELECT c.*, u.nome as nome_usuario
 
 $params = [':id_admin' => $id_admin];
 
-if (!empty($data_inicio) && !empty($data_fim)) {
-    $sql .= " AND c.data_abertura BETWEEN :data_inicio AND :data_fim";
-    $params[':data_inicio'] = $data_inicio;
-    $params[':data_fim'] = $data_fim;
+// Filtro por data específica
+if (!empty($data_filtro)) {
+    $sql .= " AND DATE(c.data_abertura) = :data_filtro";
+    $params[':data_filtro'] = $data_filtro;
 }
+
+// Filtro por ID do caixa (dropdown)
+if (!empty($filtro_id_caixa)) {
+    $sql .= " AND c.id = :id_caixa";
+    $params[':id_caixa'] = $filtro_id_caixa;
+}
+
+// Filtro por código do caixa (campo de texto)
+if (!empty($filtro_cod_caixa)) {
+    $sql .= " AND c.id = :cod_caixa";
+    $params[':cod_caixa'] = $filtro_cod_caixa;
+}
+
 if (!empty($filtro_usuario)) {
     $sql .= " AND c.id_usuario = :id_usuario";
     $params[':id_usuario'] = $filtro_usuario;
@@ -498,6 +512,69 @@ $titulo_pagina = "Movimentação de Caixas";
         .btn-cancel:hover {
             background: #d0d0d0;
         }
+        
+        .date-preset-option {
+            display: block;
+            padding: 12px 20px;
+            color: #495057;
+            text-decoration: none;
+            font-size: 14px;
+            font-family: 'Exo', sans-serif;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        
+        .date-preset-option:hover {
+            background: #f0f7ff;
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        
+        .calendar-day-header {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6c757d;
+            padding: 8px 4px;
+            font-family: 'Exo', sans-serif;
+        }
+        
+        .calendar-day {
+            text-align: center;
+            padding: 8px 4px;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-family: 'Exo', sans-serif;
+        }
+        
+        .calendar-day:hover {
+            background: #e3f2fd;
+        }
+        
+        .calendar-day.other-month {
+            color: #ccc;
+        }
+        
+        .calendar-day.selected {
+            background: #1e40af;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .calendar-day.in-range {
+            background: #e3f2fd;
+            color: #1e40af;
+        }
+        
+        .calendar-day.today {
+            border: 2px solid #1e40af;
+        }
     </style>
 </head>
 <body>
@@ -512,7 +589,6 @@ $titulo_pagina = "Movimentação de Caixas";
                 <i class="fas fa-cash-register"></i>
                 Movimentação de Caixas
             </h1>
-            <!-- 🔧 LINK CORRIGIDO: Remove "vendas/" do caminho -->
             <a href="../abrir_caixa.php" class="btn-voltar">
                 <i class="fas fa-plus"></i> Abrir Novo Caixa
             </a>
@@ -520,30 +596,149 @@ $titulo_pagina = "Movimentação de Caixas";
 
         <div class="list-container">
             <div class="filters-box">
-                <form method="GET" class="filters-grid">
-                    <div class="filter-group">
-                        <label>Data Início</label>
-                        <input type="date" name="data_inicio" class="form-control" value="<?= $data_inicio ?>">
+                <form method="GET" id="formFiltros" style="display: flex; align-items: center; gap: 15px; flex-wrap: nowrap; overflow-x: auto;">
+                    <!-- Calendário com Dropdown -->
+                    <div class="filter-group" style="min-width: 200px; max-width: 280px; flex-shrink: 0; position: relative;">
+                        <button type="button" id="btnDatePicker" class="form-control" style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: white; white-space: nowrap; border: 2px solid #e5e7eb; height: 45px;">
+                            <i class="fas fa-calendar" style="color: #666; flex-shrink: 0;"></i>
+                            <span id="dateDisplay" style="flex: 1; overflow: hidden; text-overflow: ellipsis;"><?= !empty($_GET['data_filtro']) ? date('d/m/Y', strtotime($_GET['data_filtro'])) : date('d/m/Y') ?></span>
+                            <i class="fas fa-caret-down" style="color: #666; flex-shrink: 0;"></i>
+                        </button>
+                        
+                        <!-- Hidden input para enviar a data -->
+                        <input type="hidden" name="data_filtro" id="data_filtro" value="<?= $_GET['data_filtro'] ?? date('Y-m-d') ?>">
+                        
+                        <!-- Dropdown do Calendário -->
+                        <div id="datePickerDropdown" style="display: none; position: fixed; margin-top: 5px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 9999; min-width: 200px;">
+                            <!-- Opções Predefinidas -->
+                            <div id="presetOptions" style="padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
+                                <a href="javascript:void(0)" onclick="setDatePreset('hoje'); return false;" class="date-preset-option">
+                                    <i class="fas fa-calendar-day" style="width: 20px; color: #1e40af;"></i> Hoje
+                                </a>
+                                <a href="javascript:void(0)" onclick="setDatePreset('ontem'); return false;" class="date-preset-option">
+                                    <i class="fas fa-history" style="width: 20px; color: #1e40af;"></i> Ontem
+                                </a>
+                                <a href="javascript:void(0)" onclick="setDatePreset('ultimos7dias'); return false;" class="date-preset-option">
+                                    <i class="fas fa-calendar-week" style="width: 20px; color: #1e40af;"></i> Últimos 7 dias
+                                </a>
+                                <a href="javascript:void(0)" onclick="setDatePreset('estemes'); return false;" class="date-preset-option">
+                                    <i class="fas fa-calendar-alt" style="width: 20px; color: #1e40af;"></i> Este mês
+                                </a>
+                                <a href="javascript:void(0)" onclick="setDatePreset('mesanterior'); return false;" class="date-preset-option">
+                                    <i class="fas fa-arrow-left" style="width: 20px; color: #1e40af;"></i> Mês anterior
+                                </a>
+                                <a href="javascript:void(0)" onclick="showCalendar(); return false;" class="date-preset-option" style="background: #f0f7ff; font-weight: 600; color: #1e40af;">
+                                    <i class="fas fa-calendar-plus" style="width: 20px; color: #1e40af;"></i> Selecionar período
+                                </a>
+                            </div>
+                            
+                            <!-- Calendário Duplo (oculto inicialmente) -->
+                            <div id="calendarView" style="display: none; min-width: 600px;">
+                                <!-- Área de scroll para os calendários -->
+                                <div style="max-height: 60vh; overflow-y: auto; padding: 15px;">
+                                    <!-- Botão Voltar -->
+                                    <div style="margin-bottom: 10px;">
+                                        <button type="button" onclick="backToPresets()" style="background: none; border: none; color: #1e40af; cursor: pointer; font-size: 14px; font-family: 'Exo', sans-serif; display: flex; align-items: center; gap: 5px;">
+                                            <i class="fas fa-arrow-left"></i> Voltar
+                                        </button>
+                                    </div>
+                                    
+                                    <div style="display: flex; gap: 20px;">
+                                        <!-- Calendário Mês 1 (Azul) -->
+                                        <div id="calendar1" style="flex: 1; background: #f0f7ff; padding: 15px; border-radius: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                                <button type="button" onclick="changeMonth(-1)" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #1e40af;">
+                                                    <i class="fas fa-chevron-left"></i>
+                                                </button>
+                                                <span id="month1Title" style="font-weight: 600; font-size: 14px; color: #1e40af;"></span>
+                                                <div style="width: 24px;"></div>
+                                            </div>
+                                            <div id="month1Grid"></div>
+                                        </div>
+                                        
+                                        <!-- Calendário Mês 2 (Verde) -->
+                                        <div id="calendar2" style="flex: 1; background: #f0fdf4; padding: 15px; border-radius: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                                <div style="width: 24px;"></div>
+                                                <span id="month2Title" style="font-weight: 600; font-size: 14px; color: #16a34a;"></span>
+                                                <button type="button" onclick="changeMonth(1)" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #16a34a;">
+                                                    <i class="fas fa-chevron-right"></i>
+                                                </button>
+                                            </div>
+                                            <div id="month2Grid"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Inputs ocultos para armazenar datas selecionadas -->
+                                    <input type="hidden" id="selectedStartDate" value="">
+                                    <input type="hidden" id="selectedEndDate" value="">
+                                </div>
+                                
+                                <!-- Botão Aplicar - SEMPRE VISÍVEL -->
+                                <div style="padding: 15px; border-top: 2px solid #e5e7eb; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+                                    <button type="button" id="btnApplyRange" onclick="applyDateRange()" class="btn-primary" style="width: 100%; padding: 12px;">
+                                        <i class="fas fa-check"></i> <span id="applyButtonText">Selecione uma data</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label>Data Fim</label>
-                        <input type="date" name="data_fim" class="form-control" value="<?= $data_fim ?>">
-                    </div>
-                    <div class="filter-group">
-                        <label>Usuário</label>
-                        <select name="id_usuario" class="form-control">
-                            <option value="">Todos os usuários</option>
-                            <?php foreach($lista_usuarios as $u): ?>
-                                <option value="<?= $u['id'] ?>" <?= $filtro_usuario == $u['id'] ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($u['nome']) ?>
+                    
+                    <!-- Dropdown Todos os Caixas -->
+                    <div class="filter-group" style="min-width: 180px; max-width: 200px; flex-shrink: 0;">
+                        <select name="id_caixa" class="form-control">
+                            <option value="">Todos os caixas</option>
+                            <?php 
+                            $caixas_list = $pdo->prepare("SELECT id FROM caixas WHERE id_admin = ? ORDER BY id DESC");
+                            $caixas_list->execute([$id_admin]);
+                            $caixas_list = $caixas_list->fetchAll(PDO::FETCH_ASSOC);
+                            foreach($caixas_list as $cx): 
+                            ?>
+                                <option value="<?= $cx['id'] ?>" <?= ($_GET['id_caixa'] ?? '') == $cx['id'] ? 'selected' : '' ?>>
+                                    Caixa #<?= $cx['id'] ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <button type="submit" class="btn-primary">
-                        <i class="fas fa-search"></i> Filtrar
+                    
+                    <!-- Campo Cód. Caixa -->
+                    <div class="filter-group" style="min-width: 120px; max-width: 140px; flex-shrink: 0;">
+                        <input type="text" name="cod_caixa" class="form-control" 
+                               placeholder="Cód. Caixa" 
+                               value="<?= $_GET['cod_caixa'] ?? '' ?>">
+                    </div>
+                    
+                    <!-- Dropdown Status -->
+                    <div class="filter-group" style="min-width: 140px; max-width: 160px; flex-shrink: 0;">
+                        <select name="status" class="form-control">
+                            <option value="">Status</option>
+                            <option value="ABERTO" <?= $filtro_status == 'ABERTO' ? 'selected' : '' ?>>Aberto</option>
+                            <option value="FECHADO" <?= $filtro_status == 'FECHADO' ? 'selected' : '' ?>>Fechado</option>
+                            <option value="ENCERRADO" <?= $filtro_status == 'ENCERRADO' ? 'selected' : '' ?>>Encerrado</option>
+                            <option value="EM_REVISAO" <?= $filtro_status == 'EM_REVISAO' ? 'selected' : '' ?>>Em revisão</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Botão Buscar -->
+                    <button type="submit" class="btn-primary" style="min-width: 50px; max-width: 50px; padding: 0 20px; flex-shrink: 0;">
+                        <i class="fas fa-search"></i>
                     </button>
+                    
+                    <!-- Botão Limpar Filtros -->
+                    <a href="movimentacao_caixa.php" class="btn-cancel" style="display: inline-flex; align-items: center; justify-content: center; min-width: 50px; max-width: 50px; padding: 12px 20px; text-decoration: none; flex-shrink: 0;">
+                        <i class="fas fa-undo"></i>
+                    </a>
                 </form>
+                
+                <!-- Botões de Navegação de Data -->
+                <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+                    <button onclick="diaAnterior()" style="background: linear-gradient(135deg, var(--verde), #218838); color: #fff; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; font-family: 'Exo', sans-serif; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-chevron-left"></i> Dia anterior
+                    </button>
+                    <button onclick="diaSeguinte()" style="background: linear-gradient(135deg, var(--verde), #218838); color: #fff; border: none; padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; font-family: 'Exo', sans-serif; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px;">
+                        Dia seguinte <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="table-wrapper">
@@ -581,8 +776,6 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
-
-
                                     <?php if($mov['status'] == 'ABERTO'): ?>
                                         <span class="status-aberto">
                                             <i class="fas fa-check-circle"></i> ABERTO
@@ -655,8 +848,379 @@ $titulo_pagina = "Movimentação de Caixas";
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
+        // Variáveis globais para os calendários
+        let currentMonth1 = new Date();
+        let currentMonth2 = new Date();
+        let selectedStart = null;
+        let selectedEnd = null;
+        
+        // Toggle do dropdown do calendário
+        function toggleDatePicker(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            const dropdown = document.getElementById('datePickerDropdown');
+            const calendarView = document.getElementById('calendarView');
+            const presetOptions = document.getElementById('presetOptions');
+            const btnDatePicker = document.getElementById('btnDatePicker');
+            
+            console.log('Toggle clicado - Dropdown atual:', dropdown ? dropdown.style.display : 'não encontrado');
+            
+            if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+                // Calcular posição do botão
+                const rect = btnDatePicker.getBoundingClientRect();
+                
+                // Posicionar dropdown abaixo do botão
+                dropdown.style.top = (rect.bottom + 5) + 'px';
+                dropdown.style.left = rect.left + 'px';
+                
+                // Mostrar dropdown
+                dropdown.style.display = 'block';
+                calendarView.style.display = 'none';
+                presetOptions.style.display = 'block';
+                console.log('Dropdown ABERTO na posição:', dropdown.style.top, dropdown.style.left);
+            } else {
+                dropdown.style.display = 'none';
+                console.log('Dropdown FECHADO');
+            }
+            
+            return false;
+        }
+        
+        // Adicionar event listener ao botão quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM carregado, configurando eventos...');
+            
+            const btnDatePicker = document.getElementById('btnDatePicker');
+            if (btnDatePicker) {
+                console.log('Botão encontrado, adicionando listener');
+                
+                // Remover qualquer listener anterior
+                btnDatePicker.removeEventListener('click', toggleDatePicker);
+                
+                // Adicionar novo listener
+                btnDatePicker.addEventListener('click', function(e) {
+                    console.log('Botão clicado!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleDatePicker(e);
+                    return false;
+                });
+                
+                console.log('Listener configurado com sucesso');
+            } else {
+                console.error('Botão btnDatePicker NÃO encontrado!');
+            }
+        });
+        
+        // Mostrar calendários duplos
+        function showCalendar() {
+            const calendarView = document.getElementById('calendarView');
+            const presetOptions = document.getElementById('presetOptions');
+            
+            // Esconder opções predefinidas
+            if (presetOptions) {
+                presetOptions.style.display = 'none';
+            }
+            
+            // Mostrar calendário
+            calendarView.style.display = 'block';
+            
+            // Inicializar com mês atual e próximo mês
+            currentMonth1 = new Date();
+            currentMonth2 = new Date(currentMonth1.getFullYear(), currentMonth1.getMonth() + 1, 1);
+            
+            // Resetar seleções
+            selectedStart = null;
+            selectedEnd = null;
+            
+            // Atualizar botão
+            updateApplyButton();
+            
+            renderCalendars();
+        }
+        
+        // Voltar para opções predefinidas
+        function backToPresets() {
+            const calendarView = document.getElementById('calendarView');
+            const presetOptions = document.getElementById('presetOptions');
+            
+            // Esconder calendário
+            calendarView.style.display = 'none';
+            
+            // Mostrar opções predefinidas
+            if (presetOptions) {
+                presetOptions.style.display = 'block';
+            }
+        }
+        
+        // Mudar mês
+        function changeMonth(direction) {
+            currentMonth1.setMonth(currentMonth1.getMonth() + direction);
+            currentMonth2 = new Date(currentMonth1.getFullYear(), currentMonth1.getMonth() + 1, 1);
+            renderCalendars();
+        }
+        
+        // Renderizar ambos os calendários
+        function renderCalendars() {
+            renderMonth(currentMonth1, 'month1');
+            renderMonth(currentMonth2, 'month2');
+        }
+        
+        // Renderizar um mês
+        function renderMonth(date, monthId) {
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            
+            // Atualizar título
+            const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                              'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            document.getElementById(monthId + 'Title').textContent = `${monthNames[month]} ${year}`;
+            
+            // Criar grid
+            const grid = document.getElementById(monthId + 'Grid');
+            grid.className = 'calendar-grid';
+            grid.innerHTML = '';
+            
+            // Cabeçalhos dos dias
+            const dayHeaders = ['Se', 'Te', 'Qu', 'Qu', 'Se', 'Sá', 'Do'];
+            dayHeaders.forEach(day => {
+                const header = document.createElement('div');
+                header.className = 'calendar-day-header';
+                header.textContent = day;
+                grid.appendChild(header);
+            });
+            
+            // Primeiro dia do mês e último dia
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startingDayOfWeek = firstDay.getDay();
+            
+            // Dias do mês anterior
+            const prevMonthLastDay = new Date(year, month, 0).getDate();
+            for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+                const dayDiv = createDayCell(prevMonthLastDay - i, true, year, month - 1);
+                grid.appendChild(dayDiv);
+            }
+            
+            // Dias do mês atual
+            for (let day = 1; day <= lastDay.getDate(); day++) {
+                const dayDiv = createDayCell(day, false, year, month);
+                grid.appendChild(dayDiv);
+            }
+            
+            // Dias do próximo mês
+            const remainingCells = 42 - grid.children.length + 7; // 7 headers
+            for (let day = 1; day <= remainingCells; day++) {
+                const dayDiv = createDayCell(day, true, year, month + 1);
+                grid.appendChild(dayDiv);
+            }
+        }
+        
+        // Criar célula de dia
+        function createDayCell(day, isOtherMonth, year, month) {
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'calendar-day';
+            dayDiv.textContent = day;
+            
+            if (isOtherMonth) {
+                dayDiv.classList.add('other-month');
+            }
+            
+            const cellDate = new Date(year, month, day);
+            cellDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Marcar hoje
+            if (cellDate.getTime() === today.getTime() && !isOtherMonth) {
+                dayDiv.classList.add('today');
+            }
+            
+            // Marcar selecionados
+            if (selectedStart && cellDate.getTime() === selectedStart.getTime()) {
+                dayDiv.classList.add('selected');
+            }
+            if (selectedEnd && cellDate.getTime() === selectedEnd.getTime()) {
+                dayDiv.classList.add('selected');
+            }
+            
+            // Marcar range
+            if (selectedStart && selectedEnd && cellDate > selectedStart && cellDate < selectedEnd) {
+                dayDiv.classList.add('in-range');
+            }
+            
+            // Click handler
+            dayDiv.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectDate(cellDate);
+                return false;
+            };
+            dayDiv.style.cursor = 'pointer';
+            
+            return dayDiv;
+        }
+        
+        // Selecionar data
+        function selectDate(date) {
+            // Normalizar a data (remover horas)
+            const normalizedDate = new Date(date);
+            normalizedDate.setHours(0, 0, 0, 0);
+            
+            if (!selectedStart || (selectedStart && selectedEnd)) {
+                // Primeira seleção ou resetar
+                selectedStart = normalizedDate;
+                selectedEnd = null;
+            } else {
+                // Segunda seleção
+                if (normalizedDate.getTime() === selectedStart.getTime()) {
+                    // Clicou na mesma data - resetar
+                    selectedStart = null;
+                    selectedEnd = null;
+                } else if (normalizedDate < selectedStart) {
+                    // Data anterior - inverter
+                    selectedEnd = selectedStart;
+                    selectedStart = normalizedDate;
+                } else {
+                    // Data posterior - normal
+                    selectedEnd = normalizedDate;
+                }
+            }
+            
+            // Atualizar botão
+            updateApplyButton();
+            
+            // Re-renderizar calendários
+            renderCalendars();
+        }
+        
+        // Atualizar texto e cor do botão Aplicar
+        function updateApplyButton() {
+            const btnApply = document.getElementById('btnApplyRange');
+            const btnText = document.getElementById('applyButtonText');
+            
+            if (!selectedStart) {
+                btnText.textContent = 'Selecione uma data';
+                btnApply.style.background = 'linear-gradient(135deg, #6c757d, #5a6268)';
+            } else if (!selectedEnd) {
+                btnText.textContent = 'Selecione a data final (ou clique para aplicar apenas esta data)';
+                btnApply.style.background = 'linear-gradient(135deg, #f39c12, #e08e0b)';
+            } else {
+                btnText.textContent = 'Aplicar período selecionado';
+                btnApply.style.background = 'linear-gradient(135deg, #28a745, #218838)';
+            }
+        }
+        
+        // Aplicar período selecionado
+        function applyDateRange() {
+            if (!selectedStart) {
+                alert('Por favor, selecione pelo menos uma data!');
+                return;
+            }
+            
+            const startStr = selectedStart.toISOString().split('T')[0];
+            document.getElementById('data_filtro').value = startStr;
+            
+            // Atualizar display
+            if (selectedEnd) {
+                const startFormatted = selectedStart.toLocaleDateString('pt-BR');
+                const endFormatted = selectedEnd.toLocaleDateString('pt-BR');
+                document.getElementById('dateDisplay').textContent = `${startFormatted} - ${endFormatted}`;
+            } else {
+                document.getElementById('dateDisplay').textContent = selectedStart.toLocaleDateString('pt-BR');
+            }
+            
+            // Fechar dropdown - NÃO SUBMETER AUTOMATICAMENTE
+            document.getElementById('datePickerDropdown').style.display = 'none';
+        }
+        
+        // Definir período predefinido
+        function setDatePreset(preset) {
+            const hoje = new Date();
+            let dataInicio;
+            
+            switch(preset) {
+                case 'hoje':
+                    dataInicio = hoje;
+                    break;
+                case 'ontem':
+                    dataInicio = new Date(hoje);
+                    dataInicio.setDate(hoje.getDate() - 1);
+                    break;
+                case 'ultimos7dias':
+                    dataInicio = new Date(hoje);
+                    dataInicio.setDate(hoje.getDate() - 6);
+                    break;
+                case 'estemes':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    break;
+                case 'mesanterior':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+                    break;
+            }
+            
+            const dataStr = dataInicio.toISOString().split('T')[0];
+            document.getElementById('data_filtro').value = dataStr;
+            document.getElementById('dateDisplay').textContent = dataInicio.toLocaleDateString('pt-BR');
+            
+            // Fechar dropdown - NÃO SUBMETER AUTOMATICAMENTE
+            document.getElementById('datePickerDropdown').style.display = 'none';
+        }
+        
+        // Função para ir para o dia anterior
+        function diaAnterior() {
+            const dataAtual = document.getElementById('data_filtro').value;
+            if (dataAtual) {
+                const data = new Date(dataAtual + 'T00:00:00');
+                data.setDate(data.getDate() - 1);
+                const novaData = data.toISOString().split('T')[0];
+                document.getElementById('data_filtro').value = novaData;
+                document.getElementById('dateDisplay').textContent = data.toLocaleDateString('pt-BR');
+            } else {
+                const hoje = new Date();
+                hoje.setDate(hoje.getDate() - 1);
+                const novaData = hoje.toISOString().split('T')[0];
+                document.getElementById('data_filtro').value = novaData;
+                document.getElementById('dateDisplay').textContent = hoje.toLocaleDateString('pt-BR');
+            }
+            // NÃO submeter automaticamente - aguardar clique no botão de busca
+        }
+        
+        // Função para ir para o dia seguinte
+        function diaSeguinte() {
+            const dataAtual = document.getElementById('data_filtro').value;
+            if (dataAtual) {
+                const data = new Date(dataAtual + 'T00:00:00');
+                data.setDate(data.getDate() + 1);
+                const novaData = data.toISOString().split('T')[0];
+                document.getElementById('data_filtro').value = novaData;
+                document.getElementById('dateDisplay').textContent = data.toLocaleDateString('pt-BR');
+            } else {
+                const hoje = new Date();
+                hoje.setDate(hoje.getDate() + 1);
+                const novaData = hoje.toISOString().split('T')[0];
+                document.getElementById('data_filtro').value = novaData;
+                document.getElementById('dateDisplay').textContent = hoje.toLocaleDateString('pt-BR');
+            }
+            // NÃO submeter automaticamente - aguardar clique no botão de busca
+        }
+        
+        // Fechar dropdown ao clicar fora
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('datePickerDropdown');
+            const btn = document.getElementById('btnDatePicker');
+            
+            if (dropdown && btn && !dropdown.contains(event.target) && !btn.contains(event.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+    
         function abrirModalFechamento(dados) {
             document.getElementById('modal_id_caixa').value = dados.id;
             document.getElementById('modalFechamento').classList.add('show');
@@ -678,7 +1242,6 @@ $titulo_pagina = "Movimentação de Caixas";
                         acao: 'excluir_caixa', 
                         id: id
                     }, function(response) {
-                        // Tenta parsear JSON se vier como string
                         if(typeof response === 'string') {
                             try { response = JSON.parse(response); } catch(e) {}
                         }

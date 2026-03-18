@@ -11,5 +11,8 @@
   "license": "ISC",
   "devDependencies": {
     "ftp-deploy": "^2.4.7"
+  },
+  "dependencies": {
+    "jsftp": "^2.1.3"
   }
 }

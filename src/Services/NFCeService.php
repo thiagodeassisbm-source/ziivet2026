@@ -135,6 +135,14 @@ class NFCeService
         $venda = $this->getVenda($vendaId);
         if (!$venda) throw new Exception("Venda #$vendaId não encontrada.");
         
+        // VERIFICAÇÃO CRÍTICA: Se a venda já tem NFC-e autorizada, não emitir novamente
+        if (!empty($venda['nfce_chave']) && $venda['nfce_status'] === 'AUTORIZADA') {
+            return [
+                'success' => false,
+                'message' => "Esta venda já possui NFC-e autorizada (Chave: {$venda['nfce_chave']}). Para emitir uma nova nota, cancele a anterior primeiro."
+            ];
+        }
+        
         $itens = $this->getItensVenda($vendaId);
         if (empty($itens)) throw new Exception("Venda sem itens.");
 

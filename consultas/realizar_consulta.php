@@ -101,6 +101,7 @@ if ($id_paciente_selecionado) {
 </head>
 <body>
 
+    <?php $path_prefix = '../'; ?>
     <aside class="sidebar-container"><?php include '../menu/menulateral.php'; ?></aside>
     <header class="top-header"><?php include '../menu/faixa.php'; ?></header>
 
@@ -271,8 +272,8 @@ if ($id_paciente_selecionado) {
     <!-- API Client para Consultas -->
     <script src="js/consulta-api-client.js"></script>
     
-    <script src="js/carregarDetalhesHistorico.js"></script>
-    <script src="js/carregarVacina_ISOLADO.js"></script>
+    <script src="../js/carregarDetalhesHistorico.js"></script>
+    <script src="../js/carregarVacina_ISOLADO.js"></script>
     
     <!-- Comportamento da Consulta -->
     <script src="../js/consulta_behavior.js"></script>

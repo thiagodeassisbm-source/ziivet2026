@@ -166,9 +166,9 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
     <title>Dashboard | ZIIPVET</title>
     
     <!-- CSS CENTRALIZADO -->
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/menu.css">
-    <link rel="stylesheet" href="css/header.css">
+    <link rel="stylesheet" href="css/style.css?v=<?= time() ?>">
+    <link rel="stylesheet" href="css/menu.css?v=<?= time() ?>">
+    <link rel="stylesheet" href="css/header.css?v=<?= time() ?>">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -194,7 +194,7 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         }
 
         .page-header-title {
-            font-size: 26px;
+            font-size: 30px;
             margin-bottom: 25px;
             color: #444;
             font-weight: 700;
@@ -205,15 +205,15 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         }
         
         .page-header-title i {
-            width: 40px;
-            height: 40px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, var(--roxo), #8e44ad);
             border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 20px;
+            font-size: 24px;
         }
 
         /* ✅ GRID DOS CARDS - 4 POR LINHA */
@@ -267,14 +267,14 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         }
 
         .small-box h3 {
-            font-size: 32px;
+            font-size: 38px;
             font-weight: 800;
             margin: 0 0 8px 0;
             font-family: 'Exo', sans-serif;
         }
 
         .small-box p {
-            font-size: 12px;
+            font-size: 16px;
             margin: 0;
             font-weight: 700;
             text-transform: uppercase;
@@ -300,13 +300,13 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         .small-box-footer {
             position: relative;
             text-align: center;
-            padding: 8px 0;
+            padding: 10px 0;
             color: rgba(255,255,255,0.9);
             display: block;
             z-index: 10;
             background: rgba(0,0,0,0.15);
             text-decoration: none;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: 600;
             transition: all 0.3s;
             font-family: 'Exo', sans-serif;
@@ -349,9 +349,9 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         
         .panel-header {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            padding: 18px 20px;
+            padding: 20px 22px;
             border-bottom: 3px solid #dee2e6;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
             color: #444;
             font-family: 'Exo', sans-serif;
@@ -424,14 +424,14 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         .item-title {
             font-weight: 700;
             color: #2c3e50;
-            font-size: 14px;
+            font-size: 16px;
             font-family: 'Exo', sans-serif;
         }
 
         .item-badge {
             padding: 4px 10px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             font-family: 'Exo', sans-serif;
         }
@@ -465,7 +465,7 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         .item-details {
             display: flex;
             gap: 20px;
-            font-size: 13px;
+            font-size: 14px;
             color: #666;
         }
 
@@ -493,7 +493,7 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
         }
 
         .empty-state p {
-            font-size: 14px;
+            font-size: 16px;
             font-family: 'Exo', sans-serif;
         }
 
@@ -542,11 +542,11 @@ $total_produtos_baixo = $stmt_total_produtos->fetchColumn();
 
         .tab-button {
             flex: 1;
-            padding: 15px;
+            padding: 18px;
             background: none;
             border: none;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 700;
             color: #666;
             font-family: 'Exo', sans-serif;

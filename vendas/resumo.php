@@ -95,7 +95,7 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
             align-items: center;
             gap: 8px;
             transition: 0.3s;
-            font-size: 14px;
+            font-size: 16px;
             font-family: 'Exo', sans-serif;
         }
 
@@ -148,7 +148,7 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
         }
 
         .resumo-item span {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 600;
             color: #fff;
         }
@@ -216,7 +216,7 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
         }
 
         .info-field label {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             color: #6c757d;
             text-transform: uppercase;
@@ -225,7 +225,7 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
         }
 
         .info-field span {
-            font-size: 14px;
+            font-size: 16px;
             color: #2c3e50;
             font-weight: 600;
         }
@@ -233,13 +233,13 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
         .table-produtos {
             width: 100%;
             border-collapse: collapse;
-            font-family: 'Source Sans Pro', sans-serif;
+            font-family: 'Exo', sans-serif;
         }
 
         .table-produtos thead th {
             padding: 12px 16px;
             text-align: left;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             color: #6c757d;
             text-transform: uppercase;
@@ -251,14 +251,14 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
         .table-produtos tbody td {
             padding: 16px;
             border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
+            font-size: 16px;
             color: #333;
         }
 
         .table-produtos tfoot td {
             padding: 16px;
             font-weight: 700;
-            font-size: 15px;
+            font-size: 16px;
             background: #fdfdfd;
             border-top: 2px solid #e0e0e0;
         }
@@ -286,11 +286,180 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .btn-action-group {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Modern Button Styles */
+        .btn {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Exo', sans-serif;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e2f6f 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .btn-outline {
+            background: white;
+            color: #6c757d;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-outline:hover {
+            background: #f8f9fa;
+            border-color: #1e40af;
+            color: #1e40af;
+        }
+
+        .btn-outline i {
+            font-size: 16px;
+        }
+
+        /* Slide Panel Buttons */
+        .btn-slide {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: 'Exo', sans-serif;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-salvar-slide {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-salvar-slide:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            transform: translateY(-2px);
+        }
+
+        .btn-cancelar-slide {
+            background: white;
+            color: #6c757d;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn-cancelar-slide:hover {
+            background: #f8f9fa;
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+
+        /* Form Groups in Slide */
+        .form-group-slide {
+            margin-bottom: 25px;
+        }
+
+        .form-group-slide label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 12px;
+            font-family: 'Exo', sans-serif;
+        }
+
+        .orientacao-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .orientacao-btn {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-family: 'Exo', sans-serif;
+        }
+
+        .orientacao-btn:hover {
+            border-color: #1e40af;
+            background: #f0f7ff;
+        }
+
+        .orientacao-btn.selected {
+            border-color: #1e40af;
+            background: #1e40af;
+            color: white;
+        }
+
+        .restaurar-link {
+            display: inline-block;
+            color: #1e40af;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 15px;
+            font-family: 'Exo', sans-serif;
+        }
+
+        .restaurar-link:hover {
+            text-decoration: underline;
+        }
+
+        .text-right {
+            text-align: right;
         }
 
         /* Slide Overlay Styles */
@@ -530,32 +699,29 @@ $titulo_pagina = "Resumo da Venda #" . $venda['id'];
 
             <div class="action-container">
                 <div class="btn-action-group">
-                    <button class="btn btn-primary">
+                    <button class="btn btn-outline" title="Editar venda">
                         <i class="fas fa-edit"></i> Editar
                     </button>
-                    <button class="btn btn-outline">
+                    <button class="btn btn-outline" title="Excluir venda">
                         <i class="fas fa-trash"></i>
-                    </button>
-                    <button class="btn btn-outline">
-                        <i class="fas fa-search"></i>
                     </button>
                 </div>
                 <div class="btn-action-group">
                     <?php if ($venda['status_pagamento'] != 'PAGO'): ?>
-                    <button class="btn btn-outline">
-                        <i class="fas fa-percentage"></i> Conceder desconto
+                    <button class="btn btn-outline" title="Conceder desconto">
+                        <i class="fas fa-percentage"></i> Desconto
                     </button>
-                    <button class="btn btn-success">
-                        <i class="fas fa-check"></i> Registrar recebimento
+                    <button class="btn btn-success" title="Registrar recebimento">
+                        <i class="fas fa-check-circle"></i> Registrar Recebimento
                     </button>
                     <?php endif; ?>
-                    <button class="btn btn-outline">
+                    <button class="btn btn-outline" title="Enviar por e-mail">
                         <i class="fas fa-envelope"></i>
                     </button>
-                    <button class="btn btn-outline" onclick="imprimirResumo()">
+                    <button class="btn btn-outline" onclick="imprimirResumo()" title="Imprimir">
                         <i class="fas fa-print"></i> Imprimir
                     </button>
-                    <button class="btn btn-outline" onclick="abrirConfigImpressao()">
+                    <button class="btn btn-outline" onclick="abrirConfigImpressao()" title="Configurações de impressão">
                         <i class="fas fa-cog"></i>
                     </button>
                     <a href="../vendas.php" class="btn btn-primary">

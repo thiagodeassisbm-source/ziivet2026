@@ -2,7 +2,21 @@
 require_once 'config/configuracoes.php';
 
 try {
+    $dumpObjectType = function (string $label) use ($pdo) {
+        $stmt = $pdo->query("
+            SELECT table_type
+            FROM information_schema.tables
+            WHERE table_schema = DATABASE()
+              AND table_name = 'lancamentos'
+            LIMIT 1
+        ");
+        $type = $stmt->fetchColumn();
+        echo $label . ': ' . ($type ?: 'NONE') . "\n";
+    };
+
     echo "Updating 'contas' table structure...\n";
+
+    $dumpObjectType('Before DROP (lancamentos)');
 
     // 1. Add id_venda column if not exists
     try {
@@ -15,8 +29,11 @@ try {
 
     echo "Updating 'lancamentos' VIEW definition...\n";
     
-    // 2. Drop existing View
-    $pdo->query("DROP VIEW IF EXISTS lancamentos");
+    // 2. Drop existing object (pode ser VIEW ou TABLE, depende do histórico do banco)
+    try { $pdo->query("DROP VIEW IF EXISTS lancamentos"); } catch (Exception $e) { echo "DROP VIEW failed: {$e->getMessage()}\n"; }
+    try { $pdo->query("DROP TABLE IF EXISTS lancamentos"); } catch (Exception $e) { echo "DROP TABLE failed: {$e->getMessage()}\n"; }
+
+    $dumpObjectType('After DROP (lancamentos)');
 
     // 3. Re-Create View with id_venda linked
     $sql = "

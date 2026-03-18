@@ -15,6 +15,19 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
+// Mapeamento para resolver casos antigos onde a forma de pagamento pode vir numérica.
+$formasMap = [];
+try {
+    $stmtFormas = $pdo->prepare("SELECT id, nome_forma FROM formas_pagamento WHERE id_admin = ?");
+    $stmtFormas->execute([$id_admin]);
+    $formasMapRows = $stmtFormas->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($formasMapRows as $row) {
+        $formasMap[(string)($row['id'] ?? '')] = (string)($row['nome_forma'] ?? '');
+    }
+} catch (Throwable $e) {
+    $formasMap = [];
+}
+
 // ==========================================================
 // CONFIGURAÇÃO DA PÁGINA
 // ==========================================================
@@ -110,36 +123,175 @@ try {
     // 7. ✅ CAPTURAR FILTROS
     $filtro_conta = $_GET['conta'] ?? '';
     $filtro_categoria = $_GET['categoria'] ?? '';
+    // Padrão do filtro: "Hoje" (evita listar apenas o começo do mês)
+    $filtro_periodo = $_GET['periodo'] ?? 'hoje'; // hoje, ultimos7dias, estemes, proximomes, mesanterior, personalizado
+    $filtro_data_inicio = $_GET['data_inicio'] ?? '';
+    $filtro_data_fim = $_GET['data_fim'] ?? '';
+    
+    // Calcular datas baseado no período selecionado
+    $data_inicio = '';
+    $data_fim = '';
+    
+    switch ($filtro_periodo) {
+        case 'hoje':
+            $data_inicio = date('Y-m-d');
+            $data_fim = date('Y-m-d');
+            break;
+        case 'ultimos7dias':
+            // Inclusivo: hoje + 6 dias anteriores = 7 dias
+            $data_inicio = date('Y-m-d', strtotime('-6 days'));
+            $data_fim = date('Y-m-d');
+            break;
+        case 'estemes':
+            $data_inicio = date('Y-m-01');
+            $data_fim = date('Y-m-t');
+            break;
+        case 'proximomes':
+            $data_inicio = date('Y-m-01', strtotime('first day of next month'));
+            $data_fim = date('Y-m-t', strtotime('last day of next month'));
+            break;
+        case 'mesanterior':
+            $data_inicio = date('Y-m-01', strtotime('first day of last month'));
+            $data_fim = date('Y-m-t', strtotime('last day of last month'));
+            break;
+        case 'personalizado':
+            if (!empty($filtro_data_inicio) && !empty($filtro_data_fim)) {
+                $data_inicio = $filtro_data_inicio;
+                $data_fim = $filtro_data_fim;
+            } else {
+                // Se não informou datas, usa o mês atual
+                $data_inicio = date('Y-m-01');
+                $data_fim = date('Y-m-t');
+            }
+            break;
+        default:
+            $data_inicio = date('Y-m-01');
+            $data_fim = date('Y-m-t');
+    }
 
     // 8. ✅ Listagem de Lançamentos COM DADOS DA VENDA E FILTROS
-    $sql_lancamentos = "SELECT l.*, v.valor_total as venda_valor_bruto
-                        FROM lancamentos l
-                        LEFT JOIN vendas v ON l.id_venda = v.id
-                        WHERE l.id_admin = ?
-                        AND (l.categoria IS NULL OR l.categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))";
+    // IMPORTANTE:
+    // A VIEW `lancamentos` pode ficar desalinhada com a tabela `contas` (especialmente após correções no dump).
+    // Para garantir que as vendas apareçam sempre, construímos a listagem diretamente em cima de `contas`.
+    $sql_lancamentos = "SELECT
+        c.id,
+        c.id_admin,
+        CASE
+            WHEN c.natureza = 'Receita' THEN 'ENTRADA'
+            WHEN c.natureza = 'Despesa' THEN 'SAIDA'
+            ELSE c.natureza
+        END as tipo,
+        c.categoria,
+        c.descricao,
+        c.documento,
+        c.vencimento as data_vencimento,
+        c.data_pagamento as data_compensacao,
+        c.data_cadastro,
+        c.valor_total as valor,
+        COALESCE(c.valor_parcela, c.valor_total) as valor_parcela,
+        c.status_baixa as status,
+        c.id_forma_pgto as id_forma_pagamento,
+        f.nome_forma as forma_pagamento,
+        c.id_entidade,
+        c.entidade_tipo,
+        c.id_caixa_referencia,
+        c.id_conta_origem as id_conta_financeira,
+        c.id_venda,
+        1 as total_parcelas,
+        1 as parcela_atual,
+        c.forma_pagamento_detalhe as forma_pagamento_detalhe,
+        CASE
+            WHEN c.entidade_tipo = 'cliente' THEN (SELECT nome FROM clientes WHERE id = c.id_entidade LIMIT 1)
+            WHEN c.entidade_tipo = 'fornecedor' THEN (SELECT nome_fantasia FROM fornecedores WHERE id = c.id_entidade LIMIT 1)
+            WHEN c.entidade_tipo = 'usuario' THEN (SELECT nome FROM usuarios WHERE id = c.id_entidade LIMIT 1)
+            ELSE NULL
+        END as fornecedor_cliente,
+        v.valor_total as venda_valor_bruto,
+        v.id as venda_id
+    FROM contas c
+    LEFT JOIN formas_pagamento f ON c.id_forma_pgto = f.id
+    LEFT JOIN vendas v ON v.id = (
+        CASE
+            WHEN c.id_venda IS NULL OR c.id_venda = 0 THEN CAST(c.documento AS UNSIGNED)
+            ELSE c.id_venda
+        END
+    )
+    WHERE c.id_admin = ?
+    AND (c.categoria IS NULL OR c.categoria NOT IN ('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA'))";
     
     $params = [$id_admin];
     
+    // Adicionar filtro de data
+    // Usamos a data de cadastro (DATA_CADASTRO) porque é garantidamente preenchida no insert
+    // e evita casos onde "vencimento" pode não cair exatamente no intervalo selecionado.
+    if (!empty($data_inicio) && !empty($data_fim)) {
+        $sql_lancamentos .= " AND DATE(c.data_cadastro) BETWEEN ? AND ?";
+        $params[] = $data_inicio;
+        $params[] = $data_fim;
+    }
+    
     // Adicionar filtro de conta se selecionado
     if (!empty($filtro_conta)) {
-        $sql_lancamentos .= " AND l.id_conta_financeira = ?";
+        $sql_lancamentos .= " AND c.id_conta_origem = ?";
         $params[] = $filtro_conta;
     }
     
     // Adicionar filtro de categoria se selecionado
     if (!empty($filtro_categoria)) {
-        $sql_lancamentos .= " AND l.categoria = ?";
+        $sql_lancamentos .= " AND c.categoria = ?";
         $params[] = $filtro_categoria;
     }
     
-    $sql_lancamentos .= " ORDER BY l.data_vencimento DESC, l.id DESC LIMIT 200";
+    $sql_lancamentos .= " ORDER BY c.vencimento DESC, c.id DESC LIMIT 200";
     
     $stmt_list = $pdo->prepare($sql_lancamentos);
     $stmt_list->execute($params);
     $lista_lancamentos = $stmt_list->fetchAll(PDO::FETCH_ASSOC);
+
+    if (isset($_GET['debug_financeiro'])) {
+        $exclusoes = "('SUPRIMENTO', 'ABERTURA_CAIXA', 'Caixa', 'FECHAMENTO_CAIXA')";
+        $stmtCompare1 = $pdo->prepare("
+            SELECT COUNT(*) as qtd
+            FROM contas
+            WHERE id_admin = ?
+              AND DATE(data_cadastro) BETWEEN ? AND ?
+              AND (categoria IS NULL OR categoria NOT IN $exclusoes)
+        ");
+        $stmtCompare1->execute([$id_admin, $data_inicio, $data_fim]);
+        $qtdCompare1 = (int)($stmtCompare1->fetchColumn() ?: 0);
+
+        $stmtCompare2 = $pdo->prepare("
+            SELECT COUNT(*) as qtd
+            FROM contas
+            WHERE id_admin = ?
+              AND DATE(data_cadastro) BETWEEN ? AND ?
+              AND categoria = 'VENDAS'
+        ");
+        $stmtCompare2->execute([$id_admin, $data_inicio, $data_fim]);
+        $qtdCompare2 = (int)($stmtCompare2->fetchColumn() ?: 0);
+
+        $msg = "DEBUG_FINANCEIRO\n";
+        $msg .= "id_admin={$id_admin}\n";
+        $msg .= "periodo={$filtro_periodo}\n";
+        $msg .= "data_inicio={$data_inicio}\n";
+        $msg .= "data_fim={$data_fim}\n";
+        $msg .= "filtro_conta=" . ($filtro_conta ?: 'NULL') . "\n";
+        $msg .= "filtro_categoria=" . ($filtro_categoria ?: 'NULL') . "\n";
+        $msg .= "lista_count=" . count($lista_lancamentos) . "\n";
+        $msg .= "\nSQL_lancamentos:\n" . $sql_lancamentos . "\n";
+        $msg .= "\nSQL_compare1:\n" . $stmtCompare1->queryString . "\n";
+        $msg .= "qtdCompare1_exclusoes=" . $qtdCompare1 . "\n";
+        $msg .= "qtdCompare2_vendas=" . $qtdCompare2 . "\n";
+        $msg .= "params=" . json_encode($params, JSON_UNESCAPED_UNICODE) . "\n";
+
+        echo "<pre style='background:#111;color:#0f0;padding:12px;border-radius:8px;white-space:pre-wrap;'>" . htmlspecialchars($msg) . "</pre>";
+        die();
+    }
     
-    $stmt_count = $pdo->prepare("SELECT COUNT(*) as total FROM lancamentos WHERE id_admin = ?");
-    $stmt_count->execute([$id_admin]);
+    
+    // Contagem baseada na mesma fonte (contas), para manter consistência
+    $stmt_count = $pdo->prepare("SELECT COUNT(*) as total FROM (" . $sql_lancamentos . ") as sub_l");
+    $stmt_count->execute($params);
     $total_lancamentos = $stmt_count->fetchColumn();
 
 } catch (PDOException $e) {
@@ -508,6 +660,8 @@ function extrairInfoTaxa($descricao) {
             <p style="font-size: 14px; color: #6c757d; margin-top: 5px;">
                 Total de <strong><?= number_format($total_lancamentos, 0, ',', '.') ?></strong> lançamento(s)
             </p>
+
+            <!-- bloco de debug de deploy removido -->
         </div>
 
         <!-- TABS -->
@@ -688,7 +842,7 @@ function extrairInfoTaxa($descricao) {
                     
                     <!-- ✅ BARRA DE FILTROS DA ABA LANÇAMENTOS -->
                     <div class="filtros-lancamentos">
-                        <?php if (!empty($filtro_conta) || !empty($filtro_categoria)): ?>
+                        <?php if (!empty($filtro_conta) || !empty($filtro_categoria) || $filtro_periodo != 'estemes'): ?>
                             <div style="grid-column: 1 / -1; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 12px 16px; border-radius: 8px; border-left: 4px solid #1976d2; display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                                 <i class="fas fa-filter" style="color: #1976d2;"></i>
                                 <span style="color: #0d47a1; font-weight: 600; font-size: 13px;">
@@ -702,6 +856,18 @@ function extrairInfoTaxa($descricao) {
                                     endif; ?>
                                     <?php if (!empty($filtro_conta) && !empty($filtro_categoria)) echo ' | '; ?>
                                     <?php if (!empty($filtro_categoria)): echo $filtro_categoria; endif; ?>
+                                    <?php if ((!empty($filtro_conta) || !empty($filtro_categoria)) && $filtro_periodo != 'estemes') echo ' | '; ?>
+                                    <?php if ($filtro_periodo != 'estemes'): 
+                                        echo match($filtro_periodo) {
+                                            'hoje' => 'Hoje',
+                                            'ultimos7dias' => 'Últimos 7 dias',
+                                            'estemes' => 'Este mês',
+                                            'proximomes' => 'Próximo mês',
+                                            'mesanterior' => 'Mês anterior',
+                                            'personalizado' => date('d/m/Y', strtotime($data_inicio)) . ' - ' . date('d/m/Y', strtotime($data_fim)),
+                                            default => 'Este mês'
+                                        };
+                                    endif; ?>
                                 </span>
                                 <button onclick="limparFiltros()" style="margin-left: auto; padding: 6px 12px; background: #1976d2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px;">
                                     <i class="fas fa-times"></i> Limpar filtros
@@ -755,16 +921,68 @@ function extrairInfoTaxa($descricao) {
                         </div>
                     </div>
                     
-                    <!-- DATA SELECTOR -->
-                    <div style="text-align: center; margin-bottom: 20px;">
+                    <!-- ✅ CALENDÁRIO COM DROPDOWN DE FILTRO DE DATA -->
+                    <div style="text-align: center; margin-bottom: 20px; position: relative;">
                         <div style="display: inline-flex; align-items: center; gap: 15px; background: #f8f9fa; padding: 10px 20px; border-radius: 10px;">
-                            <button style="border: none; background: transparent; color: #1e40af; cursor: pointer; font-size: 18px;">
+                            <button onclick="mudarData('anterior')" style="border: none; background: transparent; color: #1e40af; cursor: pointer; font-size: 18px;">
                                 <i class="fas fa-chevron-left"></i>
                             </button>
-                            <span style="font-size: 14px; font-weight: 700; color: #495057; font-family: 'Exo', sans-serif;">
-                                <i class="fas fa-calendar"></i> 14/01/2026
-                            </span>
-                            <button style="border: none; background: transparent; color: #1e40af; cursor: pointer; font-size: 18px;">
+                            
+                            <!-- Dropdown do Calendário -->
+                            <div class="dropdown" style="position: relative;">
+                                <button id="btnCalendario" onclick="toggleDropdownCalendario()" style="border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 700; color: #495057; font-family: 'Exo', sans-serif; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; transition: background 0.2s;">
+                                    <i class="fas fa-calendar"></i>
+                                    <span id="textoData"><?= date('d/m/Y', strtotime($data_inicio)) ?></span>
+                                    <i class="fas fa-caret-down"></i>
+                                </button>
+                                
+                                <!-- Menu Dropdown -->
+                                <div id="dropdownCalendario" style="display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 10px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); min-width: 220px; z-index: 99999; overflow: hidden; max-height: 80vh; overflow-y: auto;">
+                                    <div style="padding: 8px 0;">
+                                        <a href="?tab=lancamentos&periodo=hoje" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-calendar-day" style="width: 20px; color: #1e40af;"></i> Hoje
+                                        </a>
+                                        <a href="?tab=lancamentos&periodo=ultimos7dias" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-calendar-week" style="width: 20px; color: #1e40af;"></i> Últimos 7 dias
+                                        </a>
+                                        <a href="?tab=lancamentos&periodo=estemes" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-calendar-alt" style="width: 20px; color: #1e40af;"></i> Este mês
+                                        </a>
+                                        <a href="?tab=lancamentos&periodo=proximomes" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-arrow-right" style="width: 20px; color: #1e40af;"></i> Próximo mês
+                                        </a>
+                                        <a href="?tab=lancamentos&periodo=mesanterior" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-arrow-left" style="width: 20px; color: #1e40af;"></i> Mês anterior
+                                        </a>
+                                        <div style="border-top: 1px solid #e0e0e0; margin: 8px 0;"></div>
+                                        
+                                        <!-- Botão para expandir período personalizado -->
+                                        <a href="javascript:void(0)" onclick="togglePeriodoPersonalizado()" class="dropdown-item" style="display: block; padding: 12px 20px; color: #495057; text-decoration: none; font-size: 14px; font-family: 'Exo', sans-serif; transition: background 0.2s;">
+                                            <i class="fas fa-calendar-plus" style="width: 20px; color: #1e40af;"></i> Selecionar período
+                                        </a>
+                                        
+                                        <!-- Campos de data personalizados (ocultos por padrão) -->
+                                        <div id="camposPeriodoPersonalizado" style="display: <?= ($filtro_periodo == 'personalizado') ? 'block' : 'none' ?>; padding: 12px 20px; background: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                                            <div style="font-size: 12px; font-weight: 700; color: #6c757d; margin-bottom: 8px; font-family: 'Exo', sans-serif;">Período personalizado</div>
+                                            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                                <div style="flex: 1;">
+                                                    <label style="font-size: 10px; color: #6c757d; font-weight: 600;">DE</label>
+                                                    <input type="date" id="data_inicio_calendario" value="<?= $filtro_data_inicio ?: date('Y-m-d') ?>" style="width: 100%; padding: 6px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 12px; font-family: 'Exo', sans-serif;">
+                                                </div>
+                                                <div style="flex: 1;">
+                                                    <label style="font-size: 10px; color: #6c757d; font-weight: 600;">ATÉ</label>
+                                                    <input type="date" id="data_fim_calendario" value="<?= $filtro_data_fim ?: date('Y-m-d') ?>" style="width: 100%; padding: 6px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 12px; font-family: 'Exo', sans-serif;">
+                                                </div>
+                                            </div>
+                                            <button onclick="aplicarPeriodoPersonalizado()" style="width: 100%; padding: 8px; background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Exo', sans-serif;">
+                                                <i class="fas fa-check"></i> Filtrar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button onclick="mudarData('proxima')" style="border: none; background: transparent; color: #1e40af; cursor: pointer; font-size: 18px;">
                                 <i class="fas fa-chevron-right"></i>
                             </button>
                         </div>
@@ -791,9 +1009,17 @@ function extrairInfoTaxa($descricao) {
                                         $is_parcelado = ($l['total_parcelas'] > 1);
                                         $info_taxa = extrairInfoTaxa($l['descricao']);
                                         $tem_taxa = $info_taxa['tem_taxa'];
+                                        $idVendaExibicao = (int)($l['id_venda'] ?? 0);
+                                        if ($idVendaExibicao <= 0) {
+                                            $idVendaExibicao = (int)($l['documento'] ?? 0);
+                                        }
+                                        if ($idVendaExibicao <= 0) {
+                                            $idVendaExibicao = (int)($l['venda_id'] ?? 0);
+                                        }
+                                        $idCaixaExibicao = (int)($l['id_caixa_referencia'] ?? 0);
                                     ?>
                                     <tr class="<?= $is_parcelado ? 'highlight-parcelado' : '' ?>">
-                                        <td style="color: #1e40af; font-weight: 700; white-space: nowrap;">Caixa <?= $l['id'] ?></td>
+                                        <td style="color: #1e40af; font-weight: 700; white-space: nowrap;">Caixa <?= ($idCaixaExibicao > 0 ? $idCaixaExibicao : (int)($l['id'] ?? 0)) ?></td>
                                         <td><?= date('d/m/Y', strtotime($l['data_vencimento'])) ?></td>
                                         <td>
                                             <?php if (!empty($l['data_compensacao'])): ?>
@@ -806,8 +1032,8 @@ function extrairInfoTaxa($descricao) {
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if ($l['tipo'] == 'ENTRADA' && $l['categoria'] == 'VENDAS' && !empty($l['id_venda'])): ?>
-                                                <strong>Venda PDV #<?= $l['id_venda'] ?> - <?= htmlspecialchars($l['fornecedor_cliente']) ?></strong>
+                                            <?php if ($l['tipo'] == 'ENTRADA' && $l['categoria'] == 'VENDAS' && $idVendaExibicao > 0): ?>
+                                                <strong>Venda PDV #<?= $idVendaExibicao ?> - <?= htmlspecialchars($l['fornecedor_cliente']) ?></strong>
                                                 <?php if (!empty($l['id_caixa_referencia'])): ?>
                                                     <span class="small-detail"><i class="fas fa-cash-register"></i> Caixa <?= $l['id_caixa_referencia'] ?></span>
                                                 <?php endif; ?>
@@ -828,7 +1054,19 @@ function extrairInfoTaxa($descricao) {
                                         </td>
                                         <td>
                                             <?php 
-                                            $forma_tratada = tratarFormaPagamento($l['forma_pagamento']);
+                                            $formaBase = $l['forma_pagamento'] ?? '';
+                                            // Se vier vazio OU vier como "id" numérico, usa o fallback textual
+                                            if (empty($formaBase) || (is_string($formaBase) && trim($formaBase) !== '' && is_numeric(trim($formaBase)))) {
+                                                $formaBase = $l['forma_pagamento_detalhe'] ?? '';
+                                            }
+                                        // Se continuar vindo numérico (dados legados), converte usando o id da forma.
+                                        if (is_string($formaBase) && trim($formaBase) !== '' && is_numeric(trim($formaBase))) {
+                                            $idFormaPgto = (string)($l['id_forma_pagamento'] ?? '');
+                                            if ($idFormaPgto !== '' && isset($formasMap[$idFormaPgto]) && $formasMap[$idFormaPgto] !== '') {
+                                                $formaBase = $formasMap[$idFormaPgto];
+                                            }
+                                        }
+                                            $forma_tratada = tratarFormaPagamento($formaBase);
                                             if ($forma_tratada != 'Não especificada'): 
                                             ?>
                                                 <i class="fas fa-credit-card" style="color: #1e40af;"></i>
@@ -925,17 +1163,140 @@ function extrairInfoTaxa($descricao) {
             if (filtroCategoria) {
                 filtroCategoria.addEventListener('change', aplicarFiltros);
             }
+            
+            // Fechar dropdown ao clicar fora
+            document.addEventListener('click', function(event) {
+                const dropdown = document.getElementById('dropdownCalendario');
+                const btnCalendario = document.getElementById('btnCalendario');
+                
+                if (dropdown && btnCalendario) {
+                    if (!btnCalendario.contains(event.target) && !dropdown.contains(event.target)) {
+                        dropdown.style.display = 'none';
+                    }
+                }
+            });
+            
+            // Hover effect nos itens do dropdown
+            const dropdownItems = document.querySelectorAll('.dropdown-item');
+            dropdownItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.background = '#f0f7ff';
+                });
+                item.addEventListener('mouseleave', function() {
+                    this.style.background = 'transparent';
+                });
+            });
         });
+        
+        // Toggle do dropdown do calendário
+        function toggleDropdownCalendario() {
+            const dropdown = document.getElementById('dropdownCalendario');
+            const btnCalendario = document.getElementById('btnCalendario');
+            
+            if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+                dropdown.style.display = 'block';
+                btnCalendario.style.background = '#f0f7ff';
+            } else {
+                dropdown.style.display = 'none';
+                btnCalendario.style.background = 'transparent';
+            }
+        }
+        
+        // Toggle dos campos de período personalizado
+        function togglePeriodoPersonalizado() {
+            const campos = document.getElementById('camposPeriodoPersonalizado');
+            
+            if (campos.style.display === 'none' || campos.style.display === '') {
+                campos.style.display = 'block';
+            } else {
+                campos.style.display = 'none';
+            }
+        }
+        
+        // Aplicar período personalizado
+        function aplicarPeriodoPersonalizado() {
+            const dataInicio = document.getElementById('data_inicio_calendario').value;
+            const dataFim = document.getElementById('data_fim_calendario').value;
+            
+            if (!dataInicio || !dataFim) {
+                alert('Por favor, selecione ambas as datas (DE e ATÉ)');
+                return;
+            }
+            
+            const params = new URLSearchParams();
+            params.append('tab', 'lancamentos');
+            params.append('periodo', 'personalizado');
+            params.append('data_inicio', dataInicio);
+            params.append('data_fim', dataFim);
+            
+            // Manter filtros de conta e categoria se existirem
+            const conta = document.getElementById('filtro_conta')?.value;
+            const categoria = document.getElementById('filtro_categoria')?.value;
+            if (conta) params.append('conta', conta);
+            if (categoria) params.append('categoria', categoria);
+            
+            window.location.href = '?' + params.toString();
+        }
+        
+        // Navegar entre datas (setas)
+        function mudarData(direcao) {
+            const params = new URLSearchParams(window.location.search);
+            const periodoAtual = params.get('periodo') || 'estemes';
+            
+            // Se estiver em período personalizado, não faz nada
+            if (periodoAtual === 'personalizado') {
+                return;
+            }
+            
+            // Mapear para próximo/anterior período
+            const periodos = ['hoje', 'ultimos7dias', 'estemes', 'mesanterior', 'proximomes'];
+            let index = periodos.indexOf(periodoAtual);
+            
+            if (direcao === 'anterior') {
+                // Voltar no tempo
+                if (periodoAtual === 'estemes') {
+                    params.set('periodo', 'mesanterior');
+                } else if (periodoAtual === 'proximomes') {
+                    params.set('periodo', 'estemes');
+                } else if (periodoAtual === 'mesanterior') {
+                    // Ir para 2 meses atrás (implementar lógica customizada se necessário)
+                    return;
+                }
+            } else {
+                // Avançar no tempo
+                if (periodoAtual === 'mesanterior') {
+                    params.set('periodo', 'estemes');
+                } else if (periodoAtual === 'estemes') {
+                    params.set('periodo', 'proximomes');
+                } else if (periodoAtual === 'proximomes') {
+                    // Ir para 2 meses à frente (implementar lógica customizada se necessário)
+                    return;
+                }
+            }
+            
+            params.set('tab', 'lancamentos');
+            window.location.href = '?' + params.toString();
+        }
         
         function aplicarFiltros() {
             const conta = document.getElementById('filtro_conta').value;
             const categoria = document.getElementById('filtro_categoria').value;
             
             // Recarregar página com parâmetros de filtro
-            const params = new URLSearchParams();
-            params.append('tab', 'lancamentos');
-            if (conta) params.append('conta', conta);
-            if (categoria) params.append('categoria', categoria);
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', 'lancamentos');
+            
+            if (conta) {
+                params.set('conta', conta);
+            } else {
+                params.delete('conta');
+            }
+            
+            if (categoria) {
+                params.set('categoria', categoria);
+            } else {
+                params.delete('categoria');
+            }
             
             window.location.href = '?' + params.toString();
         }

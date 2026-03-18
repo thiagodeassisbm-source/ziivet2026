@@ -187,9 +187,9 @@ $titulo_pagina = "Dashboard Principal";
         /* GRID DOS CARDS */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
         }
 
         /* CARDS MODERNOS */
@@ -212,15 +212,15 @@ $titulo_pagina = "Dashboard Principal";
         }
 
         .small-box .inner {
-            padding: 22px 22px 18px;
+            padding: 15px 20px 10px;
             position: relative;
             z-index: 2;
         }
 
         .small-box h3 {
-            font-size: 34px;
+            font-size: 28px;
             font-weight: 800;
-            margin: 0 0 10px 0;
+            margin: 0 0 5px 0;
             font-family: 'Exo', sans-serif;
         }
 

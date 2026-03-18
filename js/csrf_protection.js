@@ -1,31 +1,57 @@
 /**
- * ZIIPVET - Proteção CSRF Global para jQuery AJAX
+ * ZIIPVET - Proteção CSRF Global
+ * VERSION: 2026-03-16-v7-FINAL-FIX
  * 
- * Este script intercepta todas as requisições AJAX do jQuery e adiciona
- * o cabeçalho X-CSRF-Token automaticamente, lendo o valor da meta tag 'csrf-token'.
+ * Este script intercepta as requisições AJAX (jQuery) e Fetch API
+ * para adicionar o cabeçalho X-CSRF-Token automaticamente.
  */
 
-$(document).ready(function () {
-    // Configuração global para jQuery AJAX
-    $.ajaxSetup({
-        beforeSend: function (xhr, settings) {
-            // Apenas para métodos que podem alterar estado no servidor
-            if (settings.type === 'POST' || settings.type === 'PUT' || settings.type === 'DELETE' || settings.type === 'PATCH') {
-                const token = $('meta[name="csrf-token"]').attr('content');
-                if (token) {
-                    xhr.setRequestHeader('X-CSRF-Token', token);
+(function() {
+    // 1. Interceptação para Fetch API (Independente de biblioteca)
+    const originalFetch = window.fetch;
+    window.fetch = function (url, options = {}) {
+        const method = (options.method || 'GET').toUpperCase();
+        
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+            // Busca o token na meta tag usando vanilla JS
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            const token = meta ? meta.getAttribute('content') : null;
+
+            if (token) {
+                options.headers = options.headers || {};
+
+                if (options.headers instanceof Headers) {
+                    if (!options.headers.has('X-CSRF-Token')) {
+                        options.headers.append('X-CSRF-Token', token);
+                    }
+                } else {
+                    options.headers['X-CSRF-Token'] = token;
                 }
             }
         }
-    });
+        return originalFetch(url, options);
+    };
 
-    // Alternativa usando ajaxSend para garantir captura de todas as chamadas
-    $(document).ajaxSend(function (event, xhr, settings) {
-        if (settings.type === 'POST' || settings.type === 'PUT' || settings.type === 'DELETE' || settings.type === 'PATCH') {
-            const token = $('meta[name="csrf-token"]').attr('content');
-            if (token) {
-                xhr.setRequestHeader('X-CSRF-Token', token);
-            }
+    // 2. Interceptação para jQuery AJAX (Apenas se jQuery estiver presente)
+    const initJQueryCsrf = function() {
+        if (typeof jQuery !== 'undefined') {
+            jQuery.ajaxSetup({
+                beforeSend: function (xhr, settings) {
+                    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(settings.type.toUpperCase())) {
+                        const token = jQuery('meta[name="csrf-token"]').attr('content');
+                        if (token) {
+                            xhr.setRequestHeader('X-CSRF-Token', token);
+                        }
+                    }
+                }
+            });
         }
-    });
-});
+    };
+
+    // Tenta inicializar jQuery imediatamente ou quando o DOM estiver pronto
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initJQueryCsrf);
+    } else {
+        initJQueryCsrf();
+    }
+})();

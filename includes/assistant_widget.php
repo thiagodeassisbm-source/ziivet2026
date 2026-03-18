@@ -1,6 +1,5 @@
 <!-- TATA ASSISTANT WIDGET -->
-<?php $path_prefix = $path_prefix ?? ''; ?>
-<link rel="stylesheet" href="<?= $path_prefix ?>css/assistant.css">
+<link rel="stylesheet" href="<?= URL_BASE ?>css/assistant.css?v=<?= time() ?>">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <div id="tata-chat-widget">
@@ -60,4 +59,4 @@
     </div>
 </div>
 
-<script src="<?= $path_prefix ?>js/assistant.js"></script>
+<script src="<?= URL_BASE ?>js/assistant.js?v=<?= time() ?>"></script>

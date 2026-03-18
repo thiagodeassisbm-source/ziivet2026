@@ -177,15 +177,25 @@ class VendaRepository
     public function criar(array $dados): int
     {
         $conn = $this->db->getConnection();
-        
+
+        // IMPORTANTE:
+        // Pela estrutura do banco (banco_dados.sql), a coluna `vendas.id` não parece estar como AUTO_INCREMENT.
+        // Quando isso acontece, inserts sem `id` acabam gerando `id=0`, o que quebra a emissão (toda emissão vai
+        // "apontar" para a mesma venda).
+        //
+        // Para garantir unicidade hoje, geramos explicitamente `id = MAX(id)+1`.
+        // (Risco baixo se a operação for pouco concorrente; ideal seria corrigir a estrutura do DB para AUTO_INCREMENT.)
+        $nextId = (int)($conn->query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM vendas")->fetchColumn());
+
         $sql = "INSERT INTO vendas (
-                    id_admin, usuario_vendedor, id_cliente, id_paciente, 
+                    id, id_admin, usuario_vendedor, id_cliente, id_paciente, 
                     data_venda, data_validade, tipo_movimento, tipo_venda, 
                     valor_total, observacoes, status_pagamento
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
         $stmt = $conn->prepare($sql);
         $stmt->execute([
+            $nextId,
             $dados['id_admin'],
             $dados['usuario_vendedor'],
             $dados['id_cliente'] ?? null,
@@ -198,8 +208,8 @@ class VendaRepository
             $dados['observacoes'] ?? null,
             $dados['status_pagamento'] ?? 'PENDENTE'
         ]);
-        
-        return (int)$conn->lastInsertId();
+
+        return $nextId;
     }
 
     /**

@@ -1,4 +1,0 @@
-[2025-12-27 04:29:47] RequisiÃ§Ã£o recebida: upload_chunk
-[2025-12-27 04:29:47] Chunk gravado com sucesso. Tamanho atual: 366745
-[2025-12-27 04:29:47] RequisiÃ§Ã£o recebida: ler_cabecalho
-[2025-12-27 04:29:47] CabeÃ§alho lido. Colunas: Ficha, Nome, CPF, RG, Sexo, Email, Celular, Endereço, Bairro, Cidade, UF, CEP, Classificação no ciclo de vida, Situação no ciclo de vida, Inclusão, Atualização, Origem, NPS, Ranking ABC, Valor pago nos últimos 30 dias, Valor pago nos últimos 90 dias, Valor pago nos últimos 180 dias, Valor pago nos últimos 365 dias, Ticket médio, Data da primeira compra, Última venda, Último acesso ao SimplesPet, Tags, Animais vivos

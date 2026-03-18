@@ -42,8 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
         try {
             $pdo->beginTransaction();
 
-            $sql = "INSERT INTO agendas (id_paciente, id_servico, data_agendamento, horario, observacoes, usuario_registro, recorrente, status, checklist_data) 
-                    VALUES (:pac, :ser, :dat, :hor, :obs, :usu, :rec, 'Agendado', :check)";
+            $sql = "INSERT INTO agendas (id_paciente, id_servico, tipo_servico, data_agendamento, horario, observacoes, usuario_registro, recorrente, status, checklist_data) 
+                    VALUES (:pac, :ser, :tip, :dat, :hor, :obs, :usu, :rec, 'Agendado', :check)";
             
             $stmt = $pdo->prepare($sql);
             
@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $stmt->execute([
                 ':pac' => $_POST['id_paciente'],
                 ':ser' => $_POST['id_servico'],
+                ':tip' => $_POST['tipo_servico_agenda'], // Novo campo
                 ':dat' => $_POST['data_agendamento'],
                 ':hor' => $_POST['horario'],
                 ':obs' => $_POST['observacoes'],
@@ -72,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
                         $stmt->execute([
                             ':pac' => $_POST['id_paciente'],
                             ':ser' => $_POST['id_servico'],
+                            ':tip' => $_POST['tipo_servico_agenda'],
                             ':dat' => $nova_data,
                             ':hor' => $_POST['horario'],
                             ':obs' => "[RECORRÊNCIA] " . $_POST['observacoes'],
@@ -102,7 +104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 
             $sql = "UPDATE agendas SET 
                     id_paciente = :pac, 
-                    id_servico = :ser, 
+                    id_servico = :ser,
+                    tipo_servico = :tip,
                     data_agendamento = :dat, 
                     horario = :hor, 
                     observacoes = :obs,
@@ -114,6 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $stmt->execute([
                 ':pac' => $_POST['id_paciente'],
                 ':ser' => $_POST['id_servico'],
+                ':tip' => $_POST['tipo_servico_agenda'],
                 ':dat' => $_POST['data_agendamento'],
                 ':hor' => $_POST['horario'],
                 ':obs' => $_POST['observacoes'],
@@ -123,6 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             ]);
 
             $pdo->commit();
+            
+            // Se estiver editando pelo modo direto (link da lista), voltar para a lista
+            if (isset($_GET['id'])) {
+                header("Location: listar_agendas.php?status=success&msg=Agendamento+atualizado");
+                exit;
+            }
+
             $msg_feedback = "Agendamento atualizado com sucesso!";
             $status_feedback = "success";
 
@@ -242,6 +253,20 @@ try {
     $todos_pacientes = $pdo->query($sql_pacientes)->fetchAll(PDO::FETCH_ASSOC);
 
     $lista_servicos = $pdo->query("SELECT id, nome, preco_venda FROM produtos WHERE tipo = 'Servico' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+    // ==========================================================
+    // CARREGAR DADOS PARA EDIÇÃO (SE ID ESTIVER NA URL)
+    // ==========================================================
+    $dados_edicao_json = null;
+    if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+        $id_editar = (int)$_GET['id'];
+        $stmt_edit = $pdo->prepare("SELECT a.*, p.id_cliente, p.nome_paciente FROM agendas a INNER JOIN pacientes p ON a.id_paciente = p.id WHERE a.id = ?");
+        $stmt_edit->execute([$id_editar]);
+        $dados_edicao = $stmt_edit->fetch(PDO::FETCH_ASSOC);
+        if ($dados_edicao) {
+            $dados_edicao_json = json_encode($dados_edicao);
+        }
+    }
 
 } catch (PDOException $e) {
     die("Erro de Banco: " . $e->getMessage());
@@ -601,6 +626,8 @@ $titulo_pagina = "Agenda de Atendimentos";
         .btn-hoje:hover { background: #5a6268; }
         .btn-novo { background: #28a745; }
         .btn-novo:hover { background: #218838; }
+        .btn-lista { background: #131c71; }
+        .btn-lista:hover { background: #0f165a; }
         .btn-ui:hover { transform: translateY(-1px); }
 
         .semana-grid { 
@@ -1004,6 +1031,45 @@ $titulo_pagina = "Agenda de Atendimentos";
             font-weight: 600;
             font-family: 'Exo', sans-serif;
         }
+
+        /* Padronização Select2 - FIX DEFINITIVO */
+        .select2-container .select2-selection--single {
+            height: 45px !important;
+            border-radius: 8px !important;
+            border: 1px solid #ced4da !important;
+            /* Importante: Sem display flex aqui para não quebrar o evento de clique do Select2 */
+            position: relative;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 43px !important;
+            top: 1px !important;
+            position: absolute !important;
+            right: 1px;
+            width: 30px;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 43px !important; /* Altura total - bordas */
+            height: 43px !important;
+            padding-left: 15px !important;
+            padding-right: 35px !important;
+            color: #495057 !important;
+            display: block !important; /* Forçar block para garantir área clicável */
+        }
+        
+        /* Ajuste do botão limpar (x) */
+        .select2-container--default .select2-selection--single .select2-selection__clear {
+            height: 43px;
+            line-height: 43px;
+            margin-right: 5px;
+            font-size: 18px;
+            color: #dc3545;
+            position: absolute;
+            right: 30px; /* Posiciona antes da seta */
+            top: 0;
+            z-index: 2;
+        }
     </style>
 </head>
 <body>
@@ -1017,7 +1083,13 @@ $titulo_pagina = "Agenda de Atendimentos";
                     icon: '<?= $status_feedback ?>',
                     confirmButtonColor: '#b92426'
                 }).then(() => {
-                    window.location.href = 'agenda.php';
+                    <?php if ($status_feedback == "success" && isset($_GET['id'])): ?>
+                        // Se sucesso e estava editando direto, voltar para lista
+                        window.location.href = 'listar_agendas.php';
+                    <?php else: ?>
+                        // Fluxo normal (recarrega para limpar/atualizar calendario)
+                        window.location.href = 'agenda.php';
+                    <?php endif; ?>
                 });
             });
         </script>
@@ -1049,6 +1121,7 @@ $titulo_pagina = "Agenda de Atendimentos";
 
         <div class="painel-body">
             <form method="POST" id="formAgenda">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                 <input type="hidden" name="acao" id="formAcao" value="salvar_agenda">
                 <input type="hidden" name="id_agenda" id="formIdAgenda">
                 <input type="hidden" name="id_paciente" id="hiddenIdPaciente">
@@ -1084,6 +1157,16 @@ $titulo_pagina = "Agenda de Atendimentos";
 
                     <div class="form-group">
                         <label>Serviço Desejado *</label>
+                        
+                        <div style="display: flex; gap: 20px; margin-bottom: 10px;">
+                            <label style="font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                <input type="radio" name="tipo_servico_agenda" value="estetica" checked> Estética
+                            </label>
+                            <label style="font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                                <input type="radio" name="tipo_servico_agenda" value="consultorio"> Consultório
+                            </label>
+                        </div>
+
                         <select name="id_servico" id="selectServico" required>
                             <option value="">-- Selecione o serviço --</option>
                             <?php foreach ($lista_servicos as $s): ?>
@@ -1272,7 +1355,10 @@ $titulo_pagina = "Agenda de Atendimentos";
                 <a href="?modo=<?= $modo_visualizacao ?>&data=<?= $proxima->format('Y-m-d') ?>" class="btn-ui btn-prev-next">
                     <i class="fas fa-chevron-right"></i>
                 </a>
-                <button onclick="abrirPainelNovo()" class="btn-ui btn-novo" style="margin-left: 20px;">
+                <a href="listar_agendas.php" class="btn-ui btn-lista" style="margin-left: 10px;">
+                    <i class="fas fa-list"></i> Lista
+                </a>
+                <button onclick="abrirPainelNovo()" class="btn-ui btn-novo" style="margin-left: 10px;">
                     <i class="fas fa-plus"></i> Novo Horário
                 </button>
             </div>
@@ -1617,6 +1703,14 @@ $titulo_pagina = "Agenda de Atendimentos";
             }
             $('#btnSubmit').attr('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processando...');
         });
+
+        // ABRIR EDITAR AUTOMATICAMENTE SE TIVER ID NA URL
+        <?php if ($dados_edicao_json): ?>
+            $(document).ready(function() {
+                const dadosEdit = <?= $dados_edicao_json ?>;
+                abrirPainelEditar(dadosEdit);
+            });
+        <?php endif; ?>
     </script>
 </body>
 </html>

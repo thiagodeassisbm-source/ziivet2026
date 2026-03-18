@@ -239,16 +239,39 @@ $titulo_pagina = "Lista de Agendamentos";
         
         tbody tr:hover {
             background: #f8f9fa;
-            transform: scale(1.001);
         }
         
         /* Layout Otimizado das Colunas */
-        th:nth-child(1), td:nth-child(1) { width: 100px; } /* Hora/Data */
+        th:nth-child(1), td:nth-child(1) { width: 90px; } /* Hora/Data */
         th:nth-child(2), td:nth-child(2) { width: auto; } /* Paciente/Tutor */
-        th:nth-child(3), td:nth-child(3) { width: 180px; } /* Serviço */
-        th:nth-child(4), td:nth-child(4) { width: 130px; } /* Status */
-        th:nth-child(5), td:nth-child(5) { width: 240px; text-align: center; } /* Ações */
+        th:nth-child(3), td:nth-child(3) { width: 140px; } /* Tipo (Novo) */
+        th:nth-child(4), td:nth-child(4) { width: 180px; } /* Serviço */
+        th:nth-child(5), td:nth-child(5) { width: 130px; } /* Status */
+        th:nth-child(6), td:nth-child(6) { width: 260px; text-align: center; } /* Ações */
         
+        /* Badges de Tipo */
+        .badge-tipo {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Exo', sans-serif;
+        }
+        .badge-tipo.estetica {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+        .badge-tipo.consultorio {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            border: 1px solid #e1bee7;
+        }
+
         /* Informações da Célula */
         td strong {
             font-weight: 600;
@@ -680,6 +703,7 @@ $titulo_pagina = "Lista de Agendamentos";
                     <tr>
                         <th><i class="fas fa-clock"></i> Horário</th>
                         <th><i class="fas fa-paw"></i> Paciente / Tutor</th>
+                        <th><i class="fas fa-tags"></i> Tipo</th>
                         <th><i class="fas fa-briefcase-medical"></i> Serviço</th>
                         <th><i class="fas fa-info-circle"></i> Status</th>
                         <th style="text-align: center;"><i class="fas fa-cogs"></i> Ações</th>
@@ -700,6 +724,13 @@ $titulo_pagina = "Lista de Agendamentos";
                                 <td>
                                     <strong><?= htmlspecialchars($ag['nome_paciente']) ?></strong>
                                     <small><?= htmlspecialchars($ag['nome_cliente']) ?></small>
+                                </td>
+                                <td>
+                                    <?php if (isset($ag['tipo_servico']) && $ag['tipo_servico'] == 'consultorio'): ?>
+                                        <span class="badge-tipo consultorio"><i class="fas fa-user-md"></i> Consultório</span>
+                                    <?php else: ?>
+                                        <span class="badge-tipo estetica"><i class="fas fa-cut"></i> Estética</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars($ag['nome_servico']) ?></td>
                                 <td>

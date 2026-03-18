@@ -184,7 +184,7 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
             </a>
             <div class="submenu" style="<?= $isConfigActive ? 'display:block' : '' ?>">
                 <a href="<?= URL_BASE ?>listar_usuarios.php" class="<?= ($currentPage == 'listar_usuarios.php' || $currentPage == 'usuarios.php') ? 'active' : '' ?>">Equipe e Permissões</a>
-                <a href="<?= URL_BASE ?>app/minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Dados do Perfil</a>
+                <a href="<?= URL_BASE ?>minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Dados do Perfil</a>
                 <a href="<?= URL_BASE ?>gerenciar_numeros_autorizados.php" class="<?= $currentPage == 'gerenciar_numeros_autorizados.php' ? 'active' : '' ?>">WhatsApp API</a>
             </div>
         </div>
