@@ -1,6 +1,26 @@
 <?php
 // index.php
-require_once 'config/configuracoes.php';
+// Resolve config/configuracoes.php mesmo quando este index.php estiver em subpasta (ex: /app/index.php).
+function requireConfiguracoes(): void
+{
+    $candidates = [
+        __DIR__ . '/config/configuracoes.php',
+        __DIR__ . '/../config/configuracoes.php',
+        __DIR__ . '/../../config/configuracoes.php',
+    ];
+
+    foreach ($candidates as $file) {
+        if (file_exists($file)) {
+            require_once $file;
+            return;
+        }
+    }
+
+    // Back-compat (caso o include_path esteja configurado)
+    require_once 'config/configuracoes.php';
+}
+
+requireConfiguracoes();
 
 // Inicia sessão se não estiver iniciada (embora config já faça isso, é bom garantir)
 if (session_status() === PHP_SESSION_NONE) {
