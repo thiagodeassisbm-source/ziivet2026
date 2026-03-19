@@ -905,13 +905,23 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
-                                    <?php if($mov['status'] == 'ABERTO'): ?>
+                                    <?php $statusMov = strtoupper(trim((string)($mov['status'] ?? ''))); ?>
+                                    <?php if($statusMov == 'ABERTO'): ?>
                                         <span class="status-aberto">
                                             <i class="fas fa-check-circle"></i> ABERTO
                                         </span>
-                                    <?php elseif($mov['status'] == 'FECHADO'): ?>
+                                    <?php elseif($statusMov == 'FECHADO'): ?>
                                         <span class="status-fechado" style="background:var(--laranja); color:#fff; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-block; margin-right:5px;">
                                             <i class="fas fa-clock"></i> FECHADO
+                                        </span>
+                                        <?php if ($podeEncerrarCaixa): ?>
+                                            <button class="btn-icon-action" title="Encerrar Caixa (Admin)" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
+                                                <i class="fas fa-lock"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                    <?php elseif($statusMov == 'EM_REVISAO'): ?>
+                                        <span class="status-fechado" style="background:#6c757d; color:#fff; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-block; margin-right:5px;">
+                                            <i class="fas fa-search"></i> EM REVISÃO
                                         </span>
                                         <?php if ($podeEncerrarCaixa): ?>
                                             <button class="btn-icon-action" title="Encerrar Caixa (Admin)" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>

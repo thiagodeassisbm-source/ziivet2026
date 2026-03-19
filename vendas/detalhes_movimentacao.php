@@ -32,6 +32,48 @@ if (trim($usuarioLogadoNome) === '') {
 
 $debug_detalhes_mov = !empty($_GET['debug']) && (string)$_GET['debug'] !== '0' && (string)$_GET['debug'] !== '';
 
+/**
+ * Resolve o caixa para ações que chegam via URL (id pode ser id ou pk_id em schema legado).
+ * Retorna:
+ * - row: array da tabela caixas (ou null)
+ * - whereField: 'id' ou 'pk_id'
+ * - whereValue: valor usado no WHERE
+ */
+function resolverCaixaParaAcao(PDO $pdo, int $id_admin, int $id_caixa): array {
+    $hasPkIdCaixas = false;
+    try {
+        $hasPkIdCaixas = (bool)$pdo->query("SHOW COLUMNS FROM caixas LIKE 'pk_id'")->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $hasPkIdCaixas = false;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
+    $stmt->execute([$id_caixa, $id_admin]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        return [
+            'row' => $row,
+            'whereField' => 'id',
+            'whereValue' => (int)($row['id'] ?? $id_caixa),
+        ];
+    }
+
+    if ($hasPkIdCaixas) {
+        $stmt = $pdo->prepare("SELECT * FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
+        $stmt->execute([$id_caixa, $id_admin]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            return [
+                'row' => $row,
+                'whereField' => 'pk_id',
+                'whereValue' => (int)($row['pk_id'] ?? $id_caixa),
+            ];
+        }
+    }
+
+    return ['row' => null, 'whereField' => 'id', 'whereValue' => 0];
+}
+
 if (!$id_caixa) {
     die("<script>alert('Caixa não informado!'); window.location.href='movimentacao_caixa.php';</script>");
 }
@@ -125,20 +167,27 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa') {
     
     try {
         $pdo->beginTransaction();
-        
-        // Verificar se o caixa está aberto
-        $stmt_check = $pdo->prepare("SELECT status FROM caixas WHERE id = ?");
-        $stmt_check->execute([$id_caixa]);
-        $status_atual = $stmt_check->fetchColumn();
-        
-        if ($status_atual !== 'ABERTO') {
+
+        $caixaResolved = resolverCaixaParaAcao($pdo, (int)$id_admin, (int)$id_caixa);
+        if (empty($caixaResolved['row'])) {
+            throw new Exception('Caixa não encontrado.');
+        }
+
+        $statusAtual = strtoupper(trim((string)($caixaResolved['row']['status'] ?? '')));
+        if ($statusAtual !== 'ABERTO') {
             throw new Exception('Este caixa não está aberto.');
         }
-        
+
         // Atualizar status para FECHADO registrando data/hora de fechamento
-        $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NOW() WHERE id = ?";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$id_caixa]);
+        if ($caixaResolved['whereField'] === 'pk_id') {
+            $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NOW() WHERE pk_id = ? AND id_admin = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+        } else {
+            $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NOW() WHERE id = ? AND id_admin = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+        }
         
         $pdo->commit();
         echo json_encode(['status' => 'success', 'message' => 'Caixa fechado com sucesso!']);
@@ -150,56 +199,159 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa') {
     exit;
 }
 
+// COLOCAR EM REVISÃO (só após FECHADO)
+if (isset($_POST['acao']) && $_POST['acao'] === 'colocar_revisao') {
+    header('Content-Type: application/json');
+
+    try {
+        $pdo->beginTransaction();
+
+        $podeRevisar = false;
+        try {
+            $podeRevisar =
+                temPermissao('vendas', 'encerrar_caixa')
+                || temPermissao('vendas', 'encerrar')
+                || temPermissao('relatorios', 'fechamento_caixa');
+        } catch (Throwable $e) {
+            $podeRevisar = false;
+        }
+
+        if (!$podeRevisar) {
+            throw new Exception('Sem permissão para colocar em revisão.');
+        }
+
+        $caixaResolved = resolverCaixaParaAcao($pdo, (int)$id_admin, (int)$id_caixa);
+        if (empty($caixaResolved['row'])) {
+            throw new Exception('Caixa não encontrado.');
+        }
+
+        $statusAtual = strtoupper(trim((string)($caixaResolved['row']['status'] ?? '')));
+        if ($statusAtual !== 'FECHADO') {
+            throw new Exception('Somente caixas FECHADO podem ser colocados em REVISÃO.');
+        }
+
+        if ($caixaResolved['whereField'] === 'pk_id') {
+            $sql = "UPDATE caixas SET status = 'EM_REVISAO' WHERE pk_id = ? AND id_admin = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+        } else {
+            $sql = "UPDATE caixas SET status = 'EM_REVISAO' WHERE id = ? AND id_admin = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+        }
+
+        $pdo->commit();
+        echo json_encode(['status' => 'success', 'message' => 'Caixa colocado em revisão']);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+
+    exit;
+}
+
 if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
     header('Content-Type: application/json');
     
     try {
         $pdo->beginTransaction();
-        
+
+        // Permissão: apenas admin finaliza (ENCERRADO).
+        $podeEncerrar = false;
+        try {
+            $podeEncerrar =
+                temPermissao('vendas', 'encerrar_caixa')
+                || temPermissao('vendas', 'encerrar')
+                || temPermissao('relatorios', 'fechamento_caixa');
+        } catch (Throwable $e) {
+            $podeEncerrar = false;
+        }
+        if (!$podeEncerrar) {
+            throw new Exception('Sem permissão para encerrar caixa.');
+        }
+
+        $caixaResolved = resolverCaixaParaAcao($pdo, (int)$id_admin, (int)$id_caixa);
+        if (empty($caixaResolved['row'])) {
+            throw new Exception('Caixa não encontrado para encerramento.');
+        }
+
+        $statusAtual = strtoupper(trim((string)($caixaResolved['row']['status'] ?? '')));
+        if (!in_array($statusAtual, ['FECHADO', 'EM_REVISAO'], true)) {
+            throw new Exception("Encerramento permitido apenas após FECHADO/EM_REVISAO. Status atual: {$statusAtual}");
+        }
+
         $id_conta_destino = $_POST['id_conta_destino'];
         $data_fechamento = $_POST['data_fechamento'];
         $hora_fechamento = $_POST['hora_fechamento'];
         $comentario = $_POST['comentario'] ?? '';
-        
-        // Calcular valor total em caixa (APENAS DINHEIRO)
+
+        // Calcular valor total em caixa (APENAS DINHEIRO) com base na tabela real `contas`.
+        $valor_inicial = (float)($caixaResolved['row']['valor_inicial'] ?? 0);
+
         $stmt_total = $pdo->prepare("
-            SELECT 
-                (SELECT COALESCE(valor_inicial, 0) FROM caixas WHERE id = ?) +
-                (SELECT COALESCE(SUM(CASE 
-                    WHEN tipo = 'ENTRADA' THEN valor 
-                    WHEN tipo = 'SAIDA' THEN -valor 
-                    END), 0) FROM lancamentos 
-                 WHERE id_caixa_referencia = ? 
-                 AND status = 'PAGO'
-                 AND UPPER(TRIM(forma_pagamento)) = 'DINHEIRO')
-                as total
+            SELECT
+                COALESCE(SUM(
+                    CASE
+                        WHEN UPPER(TRIM(COALESCE(c.natureza, ''))) = 'RECEITA' THEN COALESCE(c.valor_parcela, c.valor_total, 0)
+                        WHEN UPPER(TRIM(COALESCE(c.natureza, ''))) = 'DESPESA' THEN -COALESCE(c.valor_parcela, c.valor_total, 0)
+                        ELSE 0
+                    END
+                ), 0) AS fluxo_cash
+            FROM contas c
+            LEFT JOIN formas_pagamento f
+                ON c.id_forma_pgto = f.id AND c.id_admin = f.id_admin
+            WHERE c.id_admin = ?
+              AND c.id_caixa_referencia = ?
+              AND UPPER(TRIM(COALESCE(c.status_baixa, ''))) = 'PAGO'
+              AND UPPER(TRIM(COALESCE(c.forma_pagamento_detalhe, f.nome_forma, ''))) = 'DINHEIRO'
+              AND (
+                    c.categoria IS NULL
+                    OR UPPER(TRIM(COALESCE(c.categoria, ''))) NOT IN ('FECHAMENTO_CAIXA', 'ABERTURA_CAIXA', 'CAIXA')
+                  )
         ");
-        $stmt_total->execute([$id_caixa, $id_caixa]);
-        $valor_fechamento = $stmt_total->fetchColumn();
-        
-        // Buscar dados completos do caixa
-        $stmt_caixa = $pdo->prepare("SELECT valor_inicial, id_conta_origem, id_usuario FROM caixas WHERE id = ?");
-        $stmt_caixa->execute([$id_caixa]);
-        $dados_caixa = $stmt_caixa->fetch(PDO::FETCH_ASSOC);
-        $valor_abertura = $dados_caixa['valor_inicial'];
-        $conta_origem = $dados_caixa['id_conta_origem'];
-        $id_usuario_caixa = $dados_caixa['id_usuario'];
-        
+        $stmt_total->execute([$id_admin, $id_caixa]);
+        $fluxo_cash = (float)($stmt_total->fetchColumn() ?: 0);
+        $valor_fechamento = $valor_inicial + $fluxo_cash;
+        if ($valor_fechamento < 0) {
+            $valor_fechamento = 0;
+        }
+
+        $id_usuario_caixa = (int)($caixaResolved['row']['id_usuario'] ?? 0);
+
         // Atualizar status do caixa para ENCERRADO (processo finalizado)
-        $sql = "UPDATE caixas SET 
-                status = 'ENCERRADO',
-                data_fechamento = ?,
-                valor_fechamento = ?,
-                id_conta_fechamento = ?
-                WHERE id = ?";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $data_fechamento . ' ' . $hora_fechamento,
-            $valor_fechamento, 
-            $id_conta_destino, 
-            $id_caixa
-        ]);
+        if ($caixaResolved['whereField'] === 'pk_id') {
+            $sql = "UPDATE caixas SET 
+                    status = 'ENCERRADO',
+                    data_fechamento = ?,
+                    valor_fechamento = ?,
+                    id_conta_fechamento = ?
+                    WHERE pk_id = ? AND id_admin = ?";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                $data_fechamento . ' ' . $hora_fechamento,
+                $valor_fechamento,
+                $id_conta_destino,
+                $caixaResolved['whereValue'],
+                $id_admin
+            ]);
+        } else {
+            $sql = "UPDATE caixas SET 
+                    status = 'ENCERRADO',
+                    data_fechamento = ?,
+                    valor_fechamento = ?,
+                    id_conta_fechamento = ?
+                    WHERE id = ? AND id_admin = ?";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                $data_fechamento . ' ' . $hora_fechamento,
+                $valor_fechamento,
+                $id_conta_destino,
+                $caixaResolved['whereValue'],
+                $id_admin
+            ]);
+        }
         
         // ✅ CORREÇÃO REAL DO PROBLEMA:
         // 1. REMOVE o valor total do caixa do usuário (para não duplicar)
@@ -947,7 +1099,7 @@ $hora_atual = date('H:i');
                 <i class="fas fa-exchange-alt"></i> Transferência
             </button>
             <?php $statusRenderTop = strtoupper(trim((string)($caixa['status'] ?? ''))); ?>
-            <?php if($statusRenderTop == 'ABERTO' || $statusRenderTop == 'FECHADO'): ?>
+            <?php if($statusRenderTop == 'ABERTO' || $statusRenderTop == 'FECHADO' || $statusRenderTop == 'EM_REVISAO'): ?>
             <button onclick="abrirModalEncerramento()" style="padding:10px 16px; background:#343a40; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
                 <i class="fas fa-edit"></i> Revisar e encerrar
             </button>
