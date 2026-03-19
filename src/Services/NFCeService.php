@@ -114,6 +114,13 @@ class NFCeService
             $candidates = [];
             $candidates[] = $certFilename;
 
+            // Caso a extensão no banco não coincida com a do arquivo no servidor
+            if (str_ends_with(strtolower($certFilename), '.p12')) {
+                $candidates[] = substr($certFilename, 0, -4) . '.pfx';
+            } elseif (str_ends_with(strtolower($certFilename), '.pfx')) {
+                $candidates[] = substr($certFilename, 0, -4) . '.p12';
+            }
+
             // Remove prefixos comuns
             if (str_starts_with($certFilename, 'convertido_')) {
                 $candidates[] = substr($certFilename, strlen('convertido_'));
@@ -152,11 +159,11 @@ class NFCeService
             // mas o sufixo timestamp permanece igual.
             if (!$foundPath) {
                 $timestampHint = null;
-                if (preg_match('/_(\d+)\.p12$/i', $certFilename, $m)) {
+                if (preg_match('/_(\d+)\.(p12|pfx)$/i', $certFilename, $m)) {
                     $timestampHint = $m[1];
                 } else {
                     // tente extrair qualquer sequência grande de dígitos antes do .p12
-                    if (preg_match('/(\d+)\.p12$/i', $certFilename, $m2)) {
+                    if (preg_match('/(\d+)\.(p12|pfx)$/i', $certFilename, $m2)) {
                         $timestampHint = $m2[1];
                     }
                 }
@@ -176,12 +183,38 @@ class NFCeService
                             if (!is_file($full)) continue;
 
                             // procura por extensão e presença do hint
-                            if (str_contains($entry, $timestampHint) && str_ends_with(strtolower($entry), '.p12')) {
+                            $extOk = str_ends_with(strtolower($entry), '.p12') || str_ends_with(strtolower($entry), '.pfx');
+                            if ($extOk && str_contains($entry, $timestampHint)) {
                                 $tried[] = $full;
                                 $foundPath = $full;
                                 break 2;
                             }
                         }
+                    }
+                }
+            }
+
+            // Último fallback: se só existe um .p12/.pfx no diretório, usa ele.
+            if (!$foundPath) {
+                foreach ($certDirs as $dirTry) {
+                    if (!is_dir($dirTry)) continue;
+                    $all = @scandir($dirTry);
+                    if (!is_array($all)) continue;
+                    $pks = [];
+                    foreach ($all as $entry) {
+                        if ($entry === '.' || $entry === '..') continue;
+                        if (!is_string($entry)) continue;
+                        $full = $dirTry . $entry;
+                        if (!is_file($full)) continue;
+                        $lower = strtolower($entry);
+                        if (str_ends_with($lower, '.p12') || str_ends_with($lower, '.pfx')) {
+                            $pks[] = $full;
+                        }
+                    }
+                    if (count($pks) === 1) {
+                        $tried[] = $pks[0];
+                        $foundPath = $pks[0];
+                        break;
                     }
                 }
             }
