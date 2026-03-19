@@ -904,6 +904,17 @@ $hora_atual = date('H:i');
                                 if ($ts === false || $ts <= 0) return '---';
                                 return date($mask, $ts);
                             };
+
+                            $contaAberturaNome = '-';
+                            if (!empty($caixa['id_conta_origem'])) {
+                                try {
+                                    $stmtContaAbertura = $pdo->prepare("SELECT nome_conta FROM contas_financeiras WHERE id = ?");
+                                    $stmtContaAbertura->execute([$caixa['id_conta_origem']]);
+                                    $contaAberturaNome = (string)($stmtContaAbertura->fetchColumn() ?: '-');
+                                } catch (Throwable $e) {
+                                    $contaAberturaNome = '-';
+                                }
+                            }
                             ?>
 
                             <!-- ABERTURA (sempre) -->
@@ -918,7 +929,7 @@ $hora_atual = date('H:i');
                                         <br><small style="color:#999;font-style:italic">Observações: <?= htmlspecialchars($caixa['descricao']) ?></small>
                                     <?php endif; ?>
                                 </td>
-                                <td>-</td>
+                                <td><?= htmlspecialchars($contaAberturaNome) ?></td>
                                 <td>Dinheiro</td>
                                 <td style="text-align: right; font-weight: 700;"><?= number_format((float)($caixa['valor_inicial'] ?? 0), 2, ',', '.') ?></td>
                             </tr>
