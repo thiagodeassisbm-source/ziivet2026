@@ -133,7 +133,12 @@ try {
     ");
     $stmt_vacinas_proximas->execute([$hoje, $id_admin, $hoje, $data_limite_vacina]);
     $vacinas_proximas = $stmt_vacinas_proximas->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // Não travar o dashboard caso as queries operacionais falhem.
+    error_log("Erro Dashboard (operacional): " . $e->getMessage());
+}
 
+try {
     // ===== FINANÇAS: RECEITA/DESPESA/LUCRO (mês atual) =====
     // Para ficar REAL com o sistema financeiro, usamos o período pelo vencimento (como na listagem de contas)
     // e não excluímos categorias manualmente (evita zerar quando o sistema lança em SUPRIMENTO/caixa).
@@ -264,7 +269,7 @@ try {
     $ultimos_lancamentos_financeiros = $stmtUltimosFinanceiros->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 } catch (PDOException $e) {
-    error_log("Erro Dashboard: " . $e->getMessage());
+    error_log("Erro Dashboard (financeiro): " . $e->getMessage());
 }
 
 $titulo_pagina = "Dashboard Financeiro";
@@ -343,6 +348,13 @@ if ($debug_fin) {
         echo "id_admin={$id_admin}\n";
         echo "periodo_mes={$inicio_mes}..{$fim_mes}\n";
         echo "periodo_30={$hoje}..{$data_limite_30}\n\n";
+        echo "VARIAVEIS_USADAS_NOS_CARDS\n";
+        echo "receita_mes={$receita_mes}\n";
+        echo "despesas_mes={$despesas_mes}\n";
+        echo "lucro_mes={$lucro_mes}\n";
+        echo "receber_pendente_30={$receber_pendente_30}\n";
+        echo "pagar_pendente_30={$pagar_pendente_30}\n";
+        echo "fluxo_previsto_30={$fluxo_previsto_30}\n\n";
         echo htmlspecialchars(print_r($dbg, true));
         echo "</div>";
     } catch (Throwable $t) {
