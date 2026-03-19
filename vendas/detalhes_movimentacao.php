@@ -25,6 +25,11 @@ $id_caixa = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 // Gerar token CSRF para uso no JavaScript
 $csrf_token = \App\Utils\Csrf::generate();
 
+$usuarioLogadoNome = defined('USER_NAME') ? (string)USER_NAME : (string)($_SESSION['usuario_nome'] ?? '');
+if (trim($usuarioLogadoNome) === '') {
+    $usuarioLogadoNome = 'Usuário';
+}
+
 $debug_detalhes_mov = !empty($_GET['debug']) && (string)$_GET['debug'] !== '0' && (string)$_GET['debug'] !== '';
 
 if (!$id_caixa) {
@@ -408,6 +413,11 @@ try {
         $fechamentoPorNome = (string)($stmtFechPor->fetchColumn() ?: '-');
     } catch (Throwable $e) {
         $fechamentoPorNome = '-';
+    }
+
+    // Se não achou no histórico (legado/divergência), usa o usuário atualmente logado.
+    if (trim((string)$fechamentoPorNome) === '-' || trim((string)$fechamentoPorNome) === '') {
+        $fechamentoPorNome = $usuarioLogadoNome;
     }
 
     if ($debug_detalhes_mov) {
