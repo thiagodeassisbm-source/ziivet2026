@@ -355,7 +355,7 @@ if ($autoloadExists && is_readable($autoloadPath)) {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
             btn.disabled = true;
             
-            fetch('testar_emissao.php?venda_id=55') // Teste com Venda 55
+            fetch('testar_emissao.php') // Seleciona venda válida automaticamente
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success' && data.dados.success) {
@@ -364,6 +364,7 @@ if ($autoloadExists && is_readable($autoloadPath)) {
                             title: 'Sucesso!',
                             html: `
                                 <p><strong>Nota Emitida Corretamente!</strong></p>
+                                <p>Venda de teste: #${data.dados.venda_id || 'n/a'}</p>
                                 <p>Chave: ${data.dados.chave}</p>
                                 <p>Protocolo: ${data.dados.protocolo}</p>
                             `

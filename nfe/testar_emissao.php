@@ -26,11 +26,28 @@ try {
 
     $vendaId = isset($_GET['venda_id']) ? (int)$_GET['venda_id'] : 0;
     if ($vendaId <= 0) {
+        // Escolhe automaticamente a venda mais recente com itens para teste.
+        $stmtVenda = $pdo->query("
+            SELECT v.id
+            FROM vendas v
+            WHERE EXISTS (
+                SELECT 1
+                FROM vendas_itens vi
+                WHERE vi.id_venda = v.id
+            )
+            ORDER BY v.id DESC
+            LIMIT 1
+        ");
+        $vendaAuto = $stmtVenda ? ($stmtVenda->fetch(PDO::FETCH_ASSOC) ?: []) : [];
+        $vendaId = (int)($vendaAuto['id'] ?? 0);
+    }
+
+    if ($vendaId <= 0) {
         echo json_encode([
             'status' => 'success',
             'dados' => [
                 'success' => false,
-                'message' => 'venda_id inválido.'
+                'message' => 'Nenhuma venda com itens encontrada para teste de emissão.'
             ]
         ]);
         exit;
@@ -44,6 +61,7 @@ try {
             'status' => 'success',
             'dados' => [
                 'success' => true,
+                'venda_id' => $vendaId,
                 'chave' => $resultado['chave'] ?? '',
                 'protocolo' => $resultado['protocolo'] ?? '',
             ]
