@@ -361,6 +361,11 @@ try {
     // Auto-reparo defensivo: se o caixa já estiver fechado/encerrado e sem data de fechamento,
     // preenche para evitar inconsistência visual e de relatório.
     $statusCaixaAtual = strtoupper(trim((string)($caixa['status'] ?? '')));
+    $dataFechamentoStr = trim((string)($caixa['data_fechamento'] ?? ''));
+    $dataFechValid = !empty($dataFechamentoStr)
+        && $dataFechamentoStr !== '0000-00-00'
+        && $dataFechamentoStr !== '0000-00-00 00:00:00';
+    $mostrarFechamento = in_array($statusCaixaAtual, ['FECHADO', 'ENCERRADO'], true) || $dataFechValid;
     if (
         in_array($statusCaixaAtual, ['FECHADO', 'ENCERRADO'], true) &&
         (empty($caixa['data_fechamento']) || $caixa['data_fechamento'] === '0000-00-00 00:00:00')
@@ -395,9 +400,10 @@ try {
             'valor_fechamento' => $caixa['valor_fechamento'] ?? null,
             'id_conta_fechamento' => $caixa['id_conta_fechamento'] ?? null
         ];
-        echo "<pre style='background:#111;color:#0f0;padding:12px;border-radius:8px;white-space:pre-wrap;'>";
-        echo htmlspecialchars(json_encode($debugPayload, JSON_UNESCAPED_UNICODE));
-        echo "</pre>";
+        $debugJsonEsc = htmlspecialchars(json_encode($debugPayload, JSON_UNESCAPED_UNICODE));
+        echo "<div style='position:fixed;top:10px;right:10px;z-index:99999;background:#000;color:#0f0;padding:10px;border-radius:10px;max-width:520px;white-space:pre-wrap;font-size:12px;box-shadow:0 6px 18px rgba(0,0,0,0.35)'>";
+        echo $debugJsonEsc;
+        echo "</div>";
     }
 
     $stmtF = $pdo->prepare("SELECT id, nome_forma FROM formas_pagamento WHERE id_admin = ? ORDER BY nome_forma ASC");
@@ -933,7 +939,7 @@ $hora_atual = date('H:i');
                 <label>Abertura</label>
                 <span><?= $formatarDataHoraExibicao($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '') ?></span>
             </div>
-            <?php if($statusRenderTop == 'FECHADO' || $statusRenderTop == 'ENCERRADO'): ?>
+            <?php if(isset($mostrarFechamento) && $mostrarFechamento): ?>
             <div class="info-block">
                 <label>Fechamento</label>
                 <span><?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?></span>
@@ -1169,10 +1175,7 @@ $hora_atual = date('H:i');
                             <?php endforeach; ?>
 
                             <!-- FECHAMENTO (quando aplicável) -->
-                            <?php
-                                $statusCaixaRender = strtoupper(trim((string)($caixa['status'] ?? '')));
-                            ?>
-                            <?php if (in_array($statusCaixaRender, ['FECHADO', 'ENCERRADO'], true)): ?>
+                            <?php if (isset($mostrarFechamento) && $mostrarFechamento): ?>
                                 <?php
                                 $contaFechNome = '-';
                                 if (!empty($caixa['id_conta_fechamento'])) {
