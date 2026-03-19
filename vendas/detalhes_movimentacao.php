@@ -100,7 +100,10 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'adicionar_movimentacao') {
         ]);
         
         $pdo->commit();
-        echo json_encode(['status' => 'success', 'message' => 'Movimentação registrada!']);
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Movimentação registrada! (debug: tipo_recebido=' . $tipo . ', natureza_gravada=' . $natureza . ', categoria_gravada=' . $tipo . ')'
+        ]);
         
     } catch (Exception $e) {
         $pdo->rollBack();
