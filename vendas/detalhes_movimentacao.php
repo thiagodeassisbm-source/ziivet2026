@@ -264,6 +264,18 @@ try {
     $inicio = $caixa['data_abertura'] . ' ' . $caixa['hora_abertura'];
     $fim = !empty($caixa['data_fechamento']) ? $caixa['data_fechamento'] : date('Y-m-d H:i:s');
 
+    // Auto-reparo defensivo: se o caixa já estiver fechado/encerrado e sem data de fechamento,
+    // preenche para evitar inconsistência visual e de relatório.
+    if (
+        in_array((string)($caixa['status'] ?? ''), ['FECHADO', 'ENCERRADO'], true) &&
+        (empty($caixa['data_fechamento']) || $caixa['data_fechamento'] === '0000-00-00 00:00:00')
+    ) {
+        $dataFechAuto = !empty($caixa['data_cadastro']) ? $caixa['data_cadastro'] : date('Y-m-d H:i:s');
+        $stmtFixFech = $pdo->prepare("UPDATE caixas SET data_fechamento = ? WHERE id = ? AND id_admin = ?");
+        $stmtFixFech->execute([$dataFechAuto, $id_caixa, $id_admin]);
+        $caixa['data_fechamento'] = $dataFechAuto;
+    }
+
     $stmtF = $pdo->prepare("SELECT id, nome_forma FROM formas_pagamento WHERE id_admin = ? ORDER BY nome_forma ASC");
     $stmtF->execute([$id_admin]);
     $formasDoSistema = $stmtF->fetchAll(PDO::FETCH_ASSOC);
@@ -872,117 +884,113 @@ $hora_atual = date('H:i');
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
-                            // Buscar movimentações (incluindo abertura e fechamento do caixa)
-                            $movimentacoes = [];
-
-                            // Monta datetime robusto para campos que podem vir separados (data+hora)
-                            // ou já completos em um único campo datetime.
+                            <?php
                             $resolverDataHora = static function ($data, $hora = null): string {
                                 $dataStr = trim((string)$data);
                                 $horaStr = trim((string)$hora);
-
-                                // Se já vier datetime completo no campo de data, usa direto.
                                 if ($dataStr !== '' && preg_match('/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/', $dataStr)) {
                                     return $dataStr;
                                 }
-
-                                // Se vier só a data e hora separada.
                                 if ($dataStr !== '' && $horaStr !== '') {
                                     return $dataStr . ' ' . $horaStr;
                                 }
-
-                                // Se vier só data.
                                 if ($dataStr !== '') {
                                     return $dataStr . ' 00:00:00';
                                 }
-
-                                // Se não houver dados, usa momento atual como fallback seguro.
                                 return date('Y-m-d H:i:s');
                             };
-                            
-                            // 1. ABERTURA DO CAIXA (sempre mostra)
-                            $dataAberturaMov = $resolverDataHora($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '');
-                            $movimentacoes[] = [
-                                'data_cadastro' => $dataAberturaMov,
-                                'tipo' => 'ABERTURA',
-                                'descricao' => 'Abertura do Caixa #' . $caixa['id'] . ' - ' . ($caixa['nome_usuario'] ?? 'Operador'),
-                                'nome_conta' => null,
-                                'forma_pagamento' => 'Dinheiro',
-                                'valor' => $caixa['valor_inicial'] ?? 0,
-                                'observacoes' => $caixa['descricao'] ?: null
-                            ];
-                            
-                            // 2. MOVIMENTAÇÕES (Suprimentos, Sangrias, Despesas, Transferências)
-                            $stmtMov = $pdo->prepare("
-                                SELECT 
-                                    l.data_cadastro,
-                                    l.categoria as tipo,
-                                    l.descricao,
-                                    c.nome_conta,
-                                    l.forma_pagamento,
-                                    l.valor,
-                                    l.observacoes
-                                FROM lancamentos l
-                                LEFT JOIN contas_financeiras c ON l.id_conta = c.id
-                                WHERE l.id_caixa_referencia = ? 
-                                AND l.categoria IN ('SUPRIMENTO', 'SANGRIA', 'DESPESA', 'TRANSFERENCIA')
-                                ORDER BY l.data_cadastro DESC
-                            ");
-                            $stmtMov->execute([$id_caixa]);
-                            $movLancamentos = $stmtMov->fetchAll(PDO::FETCH_ASSOC);
-                            
-                            $movimentacoes = array_merge($movimentacoes, $movLancamentos);
-                            
-                            // 3. FECHAMENTO DO CAIXA (se FECHADO ou ENCERRADO)
-                            if ($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO') {
-                                // Buscar nome da conta de fechamento
-                                $stmtContaFech = $pdo->prepare("SELECT nome_conta FROM contas_financeiras WHERE id = ?");
-                                $stmtContaFech->execute([$caixa['id_conta_fechamento']]);
-                                $contaFech = $stmtContaFech->fetch(PDO::FETCH_ASSOC);
-
-                                $dataFechamentoMov = $resolverDataHora(
-                                    $caixa['data_fechamento'] ?? '',
-                                    $caixa['hora_fechamento'] ?? ''
-                                );
-                                
-                                $movimentacoes[] = [
-                                    'data_cadastro' => $dataFechamentoMov,
-                                    'tipo' => 'FECHAMENTO',
-                                    'descricao' => 'Encerramento do caixa',
-                                    'nome_conta' => $contaFech['nome_conta'] ?? null,
-                                    'forma_pagamento' => 'Dinheiro',
-                                    'valor' => $caixa['valor_fechamento'] ?? 0,
-                                    'observacoes' => null
-                                ];
-                            }
-                            
-                            // Ordenar por data
-                            usort($movimentacoes, function($a, $b) {
-                                return strtotime($b['data_cadastro']) - strtotime($a['data_cadastro']);
-                            });
-                            
-                            if(empty($movimentacoes)): 
+                            $fmtMov = static function ($dt, $mask) {
+                                $ts = strtotime((string)$dt);
+                                if ($ts === false || $ts <= 0) return '---';
+                                return date($mask, $ts);
+                            };
                             ?>
-                                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Nenhuma movimentação registrada.</td></tr>
-                            <?php else: foreach($movimentacoes as $mov): ?>
+
+                            <!-- ABERTURA (sempre) -->
+                            <?php $dataAberturaMov = $resolverDataHora($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? ''); ?>
                             <tr>
-                                <td><?= date('d/m', strtotime($mov['data_cadastro'])) ?></td>
-                                <td><?= date('H:i', strtotime($mov['data_cadastro'])) ?></td>
-                                <td><span class="badge-status" style="background:#eee; color:#555"><?= $mov['tipo'] ?></span></td>
+                                <td><?= $fmtMov($dataAberturaMov, 'd/m') ?></td>
+                                <td><?= $fmtMov($dataAberturaMov, 'H:i') ?></td>
+                                <td><span class="badge-status" style="background:#e9f7ef; color:#28a745;">ABERTURA</span></td>
                                 <td>
-                                    <?= htmlspecialchars($mov['descricao']) ?>
-                                    <?php if($mov['observacoes']): ?>
-                                        <br><small style="color:#999;font-style:italic">Observações: <?= htmlspecialchars($mov['observacoes']) ?></small>
+                                    <?= htmlspecialchars('Abertura do Caixa #' . ($caixa['id'] ?? $id_caixa) . ' - ' . ($caixa['nome_usuario'] ?? 'Operador')) ?>
+                                    <?php if (!empty($caixa['descricao'])): ?>
+                                        <br><small style="color:#999;font-style:italic">Observações: <?= htmlspecialchars($caixa['descricao']) ?></small>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= htmlspecialchars($mov['nome_conta'] ?: '-') ?></td>
-                                <td><?= htmlspecialchars($mov['forma_pagamento']) ?></td>
-                                <td style="text-align: right; font-weight: 700;">
-                                    <?= number_format($mov['valor'], 2, ',', '.') ?>
-                                </td>
+                                <td>-</td>
+                                <td>Dinheiro</td>
+                                <td style="text-align: right; font-weight: 700;"><?= number_format((float)($caixa['valor_inicial'] ?? 0), 2, ',', '.') ?></td>
                             </tr>
-                            <?php endforeach; endif; ?>
+
+                            <?php
+                            // MOVIMENTAÇÕES FINANCEIRAS
+                            $movLancamentos = [];
+                            try {
+                                $stmtMov = $pdo->prepare("
+                                    SELECT 
+                                        l.data_cadastro,
+                                        l.categoria as tipo,
+                                        l.descricao,
+                                        c.nome_conta,
+                                        l.forma_pagamento,
+                                        l.valor,
+                                        l.observacoes
+                                    FROM lancamentos l
+                                    LEFT JOIN contas_financeiras c ON l.id_conta = c.id
+                                    WHERE l.id_caixa_referencia = ? 
+                                      AND l.categoria IN ('SUPRIMENTO', 'SANGRIA', 'DESPESA', 'TRANSFERENCIA')
+                                    ORDER BY l.data_cadastro DESC
+                                ");
+                                $stmtMov->execute([$id_caixa]);
+                                $movLancamentos = $stmtMov->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                            } catch (Throwable $e) {
+                                $movLancamentos = [];
+                            }
+
+                            foreach ($movLancamentos as $mov):
+                            ?>
+                            <tr>
+                                <td><?= $fmtMov($mov['data_cadastro'] ?? '', 'd/m') ?></td>
+                                <td><?= $fmtMov($mov['data_cadastro'] ?? '', 'H:i') ?></td>
+                                <td><span class="badge-status" style="background:#eee; color:#555"><?= htmlspecialchars((string)($mov['tipo'] ?? '-')) ?></span></td>
+                                <td>
+                                    <?= htmlspecialchars((string)($mov['descricao'] ?? '-')) ?>
+                                    <?php if (!empty($mov['observacoes'])): ?>
+                                        <br><small style="color:#999;font-style:italic">Observações: <?= htmlspecialchars((string)$mov['observacoes']) ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= htmlspecialchars((string)($mov['nome_conta'] ?? '-')) ?></td>
+                                <td><?= htmlspecialchars((string)($mov['forma_pagamento'] ?? '-')) ?></td>
+                                <td style="text-align: right; font-weight: 700;"><?= number_format((float)($mov['valor'] ?? 0), 2, ',', '.') ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+
+                            <!-- FECHAMENTO (quando aplicável) -->
+                            <?php if (($caixa['status'] ?? '') === 'FECHADO' || ($caixa['status'] ?? '') === 'ENCERRADO'): ?>
+                                <?php
+                                $contaFechNome = '-';
+                                if (!empty($caixa['id_conta_fechamento'])) {
+                                    try {
+                                        $stmtContaFech = $pdo->prepare("SELECT nome_conta FROM contas_financeiras WHERE id = ?");
+                                        $stmtContaFech->execute([$caixa['id_conta_fechamento']]);
+                                        $contaFechNome = (string)($stmtContaFech->fetchColumn() ?: '-');
+                                    } catch (Throwable $e) {
+                                        $contaFechNome = '-';
+                                    }
+                                }
+                                $dataFechMov = $resolverDataHora($caixa['data_fechamento'] ?? '', $caixa['hora_fechamento'] ?? '');
+                                ?>
+                                <tr>
+                                    <td><?= $fmtMov($dataFechMov, 'd/m') ?></td>
+                                    <td><?= $fmtMov($dataFechMov, 'H:i') ?></td>
+                                    <td><span class="badge-status" style="background:#fbeaea; color:#dc3545;">FECHAMENTO</span></td>
+                                    <td>Encerramento do caixa</td>
+                                    <td><?= htmlspecialchars($contaFechNome) ?></td>
+                                    <td>Dinheiro</td>
+                                    <td style="text-align: right; font-weight: 700;"><?= number_format((float)($caixa['valor_fechamento'] ?? 0), 2, ',', '.') ?></td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
