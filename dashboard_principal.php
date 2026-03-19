@@ -130,16 +130,15 @@ try {
     $vacinas_proximas = $stmt_vacinas_proximas->fetchAll(PDO::FETCH_ASSOC);
 
     // ===== FINANÇAS: RECEITA/DESPESA/LUCRO (mês atual) =====
-    $exclusoes = "('SUPRIMENTO','ABERTURA_CAIXA','Caixa','FECHAMENTO_CAIXA')";
-
+    // Para ficar REAL com o sistema financeiro, usamos o período pelo vencimento (como na listagem de contas)
+    // e não excluímos categorias manualmente (evita zerar quando o sistema lança em SUPRIMENTO/caixa).
     $stmtReceitaMes = $pdo->prepare("
         SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
         FROM contas c
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
-          AND DATE(c.data_cadastro) BETWEEN ? AND ?
+          AND DATE(c.vencimento) BETWEEN ? AND ?
     ");
     $stmtReceitaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
     $receita_mes = (float)$stmtReceitaMes->fetchColumn();
@@ -150,8 +149,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
-          AND DATE(c.data_cadastro) BETWEEN ? AND ?
+          AND DATE(c.vencimento) BETWEEN ? AND ?
     ");
     $stmtDespesaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
     $despesas_mes = (float)$stmtDespesaMes->fetchColumn();
@@ -160,14 +158,14 @@ try {
     $margem_mes = ($receita_mes > 0) ? (($lucro_mes / $receita_mes) * 100.0) : 0.0;
 
     // ===== FINANÇAS: RECEBER/PAGAR PENDENTE (próximos 30 dias) =====
+    // Pelo mesmo motivo: usar vencimento e não excluir categorias manualmente.
     $stmtReceber30 = $pdo->prepare("
         SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
         FROM contas c
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND c.vencimento BETWEEN ? AND ?
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.vencimento) BETWEEN ? AND ?
     ");
     $stmtReceber30->execute([$id_admin, $hoje, $data_limite_30]);
     $receber_pendente_30 = (float)$stmtReceber30->fetchColumn();
@@ -178,8 +176,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND c.vencimento BETWEEN ? AND ?
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.vencimento) BETWEEN ? AND ?
     ");
     $stmtPagar30->execute([$id_admin, $hoje, $data_limite_30]);
     $pagar_pendente_30 = (float)$stmtPagar30->fetchColumn();
@@ -207,8 +204,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND c.vencimento BETWEEN ? AND ?
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.vencimento) BETWEEN ? AND ?
         ORDER BY c.vencimento ASC
         LIMIT 10
     ");
@@ -235,8 +231,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND c.vencimento BETWEEN ? AND ?
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.vencimento) BETWEEN ? AND ?
         ORDER BY c.vencimento ASC
         LIMIT 10
     ");
@@ -257,7 +252,6 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) IN ('RECEITA','DESPESA')
           AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
-          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
         ORDER BY c.data_cadastro DESC
         LIMIT 10
     ");
