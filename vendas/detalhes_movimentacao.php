@@ -36,12 +36,18 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'adicionar_movimentacao') {
     try {
         $pdo->beginTransaction();
         
-        $tipo = $_POST['tipo'];
+        $tipo = strtoupper(trim((string)($_POST['tipo'] ?? '')));
         $valor = floatval(str_replace(',', '.', str_replace('.', '', $_POST['valor'])));
         $forma_pagamento = $_POST['forma_pagamento'] ?? 'Não especificada';
         $id_conta = $_POST['id_conta'] ?? null;
         $descricao = $_POST['descricao'] ?? '';
         $observacoes = $_POST['observacoes'] ?? '';
+
+        // Garantir consistência dos tipos que alteram "natureza"/categoria.
+        $tipoPermitido = ['SUPRIMENTO', 'SANGRIA', 'DESPESA', 'TRANSFERENCIA'];
+        if (!in_array($tipo, $tipoPermitido, true)) {
+            throw new Exception('Tipo de movimentação inválido: ' . htmlspecialchars($tipo));
+        }
         
         // IMPORTANTE:
         // `lancamentos` é uma VIEW e pode não ser estável para inserts (schema divergente).
