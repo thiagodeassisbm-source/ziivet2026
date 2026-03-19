@@ -25,6 +25,8 @@ $id_caixa = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 // Gerar token CSRF para uso no JavaScript
 $csrf_token = \App\Utils\Csrf::generate();
 
+$debug_detalhes_mov = !empty($_GET['debug']) && (string)$_GET['debug'] !== '0' && (string)$_GET['debug'] !== '';
+
 if (!$id_caixa) {
     die("<script>alert('Caixa não informado!'); window.location.href='movimentacao_caixa.php';</script>");
 }
@@ -273,6 +275,14 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
 }
 
 try {
+    $hasPkIdCaixas = false;
+    try {
+        $hasPkIdCaixas = (bool)$pdo->query("SHOW COLUMNS FROM caixas LIKE 'pk_id'")->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $hasPkIdCaixas = false;
+    }
+
+    $modoBuscaCaixa = 'id';
     $stmtCaixa = $pdo->prepare("
         SELECT c.*, u.nome as nome_usuario
         FROM caixas c
@@ -281,6 +291,20 @@ try {
     ");
     $stmtCaixa->execute([$id_caixa, $id_admin]);
     $caixa = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+
+    // Fallback para schema legado onde `id` pode ser 0 e o identificador real fica em `pk_id`.
+    if (!$caixa && $hasPkIdCaixas) {
+        $modoBuscaCaixa = 'pk_id';
+        $stmtCaixa = $pdo->prepare("
+            SELECT c.*, u.nome as nome_usuario
+            FROM caixas c
+            LEFT JOIN usuarios u ON c.id_usuario = u.id
+            WHERE c.pk_id = ? AND c.id_admin = ?
+            LIMIT 1
+        ");
+        $stmtCaixa->execute([$id_caixa, $id_admin]);
+        $caixa = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+    }
 
     if (!$caixa) {
         die("<script>alert('Caixa não encontrado!'); window.location.href='movimentacao_caixa.php';</script>");
@@ -316,9 +340,38 @@ try {
         (empty($caixa['data_fechamento']) || $caixa['data_fechamento'] === '0000-00-00 00:00:00')
     ) {
         $dataFechAuto = !empty($caixa['data_cadastro']) ? $caixa['data_cadastro'] : date('Y-m-d H:i:s');
-        $stmtFixFech = $pdo->prepare("UPDATE caixas SET data_fechamento = ? WHERE id = ? AND id_admin = ?");
-        $stmtFixFech->execute([$dataFechAuto, $id_caixa, $id_admin]);
+
+        $idCaixaFix = (int)($caixa['id'] ?? 0);
+        $pkIdCaixaFix = (int)($caixa['pk_id'] ?? 0);
+        if ($idCaixaFix > 0) {
+            $stmtFixFech = $pdo->prepare("UPDATE caixas SET data_fechamento = ? WHERE id = ? AND id_admin = ?");
+            $stmtFixFech->execute([$dataFechAuto, $idCaixaFix, $id_admin]);
+        } elseif ($pkIdCaixaFix > 0) {
+            $stmtFixFech = $pdo->prepare("UPDATE caixas SET data_fechamento = ? WHERE pk_id = ? AND id_admin = ?");
+            $stmtFixFech->execute([$dataFechAuto, $pkIdCaixaFix, $id_admin]);
+        }
+
         $caixa['data_fechamento'] = $dataFechAuto;
+    }
+
+    if ($debug_detalhes_mov) {
+        $statusRaw = (string)($caixa['status'] ?? '');
+        $statusNorm = strtoupper(trim($statusRaw));
+        $debugPayload = [
+            'debug' => 'detalhes_movimentacao',
+            'id_caixa_url' => $id_caixa,
+            'id_caixa_row' => (int)($caixa['id'] ?? 0),
+            'pk_id_row' => (int)($caixa['pk_id'] ?? 0),
+            'busca_usada' => $modoBuscaCaixa,
+            'status_raw' => $statusRaw,
+            'status_norm' => $statusNorm,
+            'data_fechamento_raw' => (string)($caixa['data_fechamento'] ?? ''),
+            'valor_fechamento' => $caixa['valor_fechamento'] ?? null,
+            'id_conta_fechamento' => $caixa['id_conta_fechamento'] ?? null
+        ];
+        echo "<pre style='background:#111;color:#0f0;padding:12px;border-radius:8px;white-space:pre-wrap;'>";
+        echo htmlspecialchars(json_encode($debugPayload, JSON_UNESCAPED_UNICODE));
+        echo "</pre>";
     }
 
     $stmtF = $pdo->prepare("SELECT id, nome_forma FROM formas_pagamento WHERE id_admin = ? ORDER BY nome_forma ASC");
