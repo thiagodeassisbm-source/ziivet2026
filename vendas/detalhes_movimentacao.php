@@ -385,6 +385,31 @@ try {
         $caixa['data_fechamento'] = $dataFechAuto;
     }
 
+    // Quem fechou (tentativa via tabela contas, pois em schema legado não existe coluna dedicada).
+    // Estratégia: buscar lançamento de ENCERRAMENTO vinculado ao caixa e pegar o nome do usuário.
+    $fechamentoPorNome = '-';
+    try {
+        $stmtFechPor = $pdo->prepare("
+            SELECT u.nome
+            FROM contas ct
+            LEFT JOIN usuarios u
+                ON ct.entidade_tipo = 'usuario' AND ct.id_entidade = u.id
+            WHERE ct.id_caixa_referencia = ?
+              AND ct.id_admin = ?
+              AND (
+                    UPPER(TRIM(COALESCE(ct.documento, ''))) = 'ENCERRAMENTO'
+                    OR UPPER(TRIM(COALESCE(ct.descricao, ''))) LIKE '%ENCERRAMENTO%'
+                    OR UPPER(TRIM(COALESCE(ct.categoria, ''))) = 'FECHAMENTO_CAIXA'
+                  )
+            ORDER BY ct.data_cadastro DESC, ct.id DESC
+            LIMIT 1
+        ");
+        $stmtFechPor->execute([$id_caixa, $id_admin]);
+        $fechamentoPorNome = (string)($stmtFechPor->fetchColumn() ?: '-');
+    } catch (Throwable $e) {
+        $fechamentoPorNome = '-';
+    }
+
     if ($debug_detalhes_mov) {
         $statusRaw = (string)($caixa['status'] ?? '');
         $statusNorm = strtoupper(trim($statusRaw));
@@ -1358,7 +1383,7 @@ $hora_atual = date('H:i');
                             <?php if (isset($mostrarFechamento) && $mostrarFechamento): ?>
                                 <div style="padding:8px; background:#fbeaea; border-left:3px solid #dc3545; border-radius:4px;">
                                     <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?><br>
-                                    <small>Caixa encerrado</small>
+                                    <small>Caixa fechado por <?= htmlspecialchars($fechamentoPorNome) ?></small>
                                 </div>
                             <?php endif; ?>
                         </div>
