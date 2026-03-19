@@ -32,6 +32,7 @@ if (trim($usuarioLogadoNome) === '') {
 }
 
 $debug_detalhes_mov = !empty($_GET['debug']) && (string)$_GET['debug'] !== '0' && (string)$_GET['debug'] !== '';
+$debug_caixa_flow = !empty($_GET['debug_caixa']) && (string)$_GET['debug_caixa'] !== '0' && (string)$_GET['debug_caixa'] !== '';
 
 /**
  * Resolve o caixa para ações que chegam via URL (id pode ser id ou pk_id em schema legado).
@@ -259,26 +260,66 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'colocar_revisao') {
             throw new Exception('Caixa não encontrado.');
         }
 
-        $statusAtual = strtoupper(trim((string)($caixaResolved['row']['status'] ?? '')));
+        $statusAntes = strtoupper(trim((string)($caixaResolved['row']['status'] ?? '')));
+        $statusAtual = $statusAntes;
         if ($statusAtual !== 'FECHADO') {
             throw new Exception('Somente caixas FECHADO podem ser colocados em REVISÃO.');
         }
 
+        $linhasAfetadas = 0;
         if ($caixaResolved['whereField'] === 'pk_id') {
             $sql = "UPDATE caixas SET status = 'EM_REVISAO' WHERE pk_id = ? AND id_admin = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+            $linhasAfetadas = (int)$stmt->rowCount();
         } else {
             $sql = "UPDATE caixas SET status = 'EM_REVISAO' WHERE id = ? AND id_admin = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$caixaResolved['whereValue'], $id_admin]);
+            $linhasAfetadas = (int)$stmt->rowCount();
+        }
+
+        // Releitura para confirmar status final realmente gravado.
+        $statusDepois = '';
+        if ($caixaResolved['whereField'] === 'pk_id') {
+            $stmtCheck = $pdo->prepare("SELECT status FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
+            $stmtCheck->execute([$caixaResolved['whereValue'], $id_admin]);
+            $statusDepois = strtoupper(trim((string)$stmtCheck->fetchColumn()));
+        } else {
+            $stmtCheck = $pdo->prepare("SELECT status FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
+            $stmtCheck->execute([$caixaResolved['whereValue'], $id_admin]);
+            $statusDepois = strtoupper(trim((string)$stmtCheck->fetchColumn()));
         }
 
         $pdo->commit();
-        echo json_encode(['status' => 'success', 'message' => 'Caixa colocado em revisão']);
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Caixa colocado em revisão',
+            'debug' => [
+                'acao' => 'colocar_revisao',
+                'id_caixa_url' => (int)$id_caixa,
+                'where_field' => $caixaResolved['whereField'],
+                'where_value' => (int)$caixaResolved['whereValue'],
+                'status_antes' => $statusAntes,
+                'status_depois' => $statusDepois,
+                'linhas_afetadas' => $linhasAfetadas,
+                'pode_revisar' => $podeRevisar ? 1 : 0,
+                'usuario_id' => (int)$id_usuario_logado,
+                'id_admin' => (int)$id_admin
+            ]
+        ]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        echo json_encode([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'debug' => [
+                'acao' => 'colocar_revisao',
+                'id_caixa_url' => (int)$id_caixa,
+                'usuario_id' => (int)$id_usuario_logado,
+                'id_admin' => (int)$id_admin
+            ]
+        ]);
     }
 
     exit;
@@ -447,12 +488,47 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
             ]);
         }
         
+        // Confirmar status final após encerramento.
+        $statusDepois = '';
+        if ($caixaResolved['whereField'] === 'pk_id') {
+            $stmtCheck = $pdo->prepare("SELECT status FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
+            $stmtCheck->execute([$caixaResolved['whereValue'], $id_admin]);
+            $statusDepois = strtoupper(trim((string)$stmtCheck->fetchColumn()));
+        } else {
+            $stmtCheck = $pdo->prepare("SELECT status FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
+            $stmtCheck->execute([$caixaResolved['whereValue'], $id_admin]);
+            $statusDepois = strtoupper(trim((string)$stmtCheck->fetchColumn()));
+        }
+
         $pdo->commit();
-        echo json_encode(['status' => 'success', 'message' => 'Caixa encerrado e valores transferidos!']);
+        echo json_encode([
+            'status' => 'success',
+            'message' => 'Caixa encerrado e valores transferidos!',
+            'debug' => [
+                'acao' => 'encerrar_caixa',
+                'id_caixa_url' => (int)$id_caixa,
+                'where_field' => $caixaResolved['whereField'],
+                'where_value' => (int)$caixaResolved['whereValue'],
+                'status_antes' => $statusAtual,
+                'status_depois' => $statusDepois,
+                'valor_fechamento' => (float)$valor_fechamento,
+                'usuario_id' => (int)$id_usuario_logado,
+                'id_admin' => (int)$id_admin
+            ]
+        ]);
         
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        echo json_encode([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'debug' => [
+                'acao' => 'encerrar_caixa',
+                'id_caixa_url' => (int)$id_caixa,
+                'usuario_id' => (int)$id_usuario_logado,
+                'id_admin' => (int)$id_admin
+            ]
+        ]);
     }
     exit;
 }
@@ -616,6 +692,19 @@ try {
         $debugJsonEsc = htmlspecialchars(json_encode($debugPayload, JSON_UNESCAPED_UNICODE));
         echo "<div style='position:fixed;top:10px;right:10px;z-index:99999;background:#000;color:#0f0;padding:10px;border-radius:10px;max-width:520px;white-space:pre-wrap;font-size:12px;box-shadow:0 6px 18px rgba(0,0,0,0.35)'>";
         echo $debugJsonEsc;
+        echo "</div>";
+    }
+
+    if ($debug_caixa_flow) {
+        $dbgFlow = [
+            'debug' => 'caixa_flow',
+            'id_caixa_url' => (int)$id_caixa,
+            'status_tela' => strtoupper(trim((string)($caixa['status'] ?? ''))),
+            'usuario_id' => (int)$id_usuario_logado,
+            'id_admin' => (int)$id_admin
+        ];
+        echo "<div style='position:fixed;bottom:10px;right:10px;z-index:99999;background:#1b1b1b;color:#ffd166;padding:10px;border-radius:10px;max-width:420px;white-space:pre-wrap;font-size:12px;box-shadow:0 6px 18px rgba(0,0,0,0.35)'>";
+        echo htmlspecialchars(json_encode($dbgFlow, JSON_UNESCAPED_UNICODE));
         echo "</div>";
     }
 
@@ -1719,6 +1808,7 @@ $hora_atual = date('H:i');
                 const text = await res.text();
                 let resposta = {};
                 try { resposta = JSON.parse(text); } catch (e) { resposta = {status:'error', message:'Resposta inválida: ' + text.substring(0,200)}; }
+                if (resposta.debug) console.log('DEBUG_CAIXA_ENCERRAR', resposta.debug);
                 
                 if (resposta.status === 'success') {
                     Swal.fire({title: 'Sucesso!', text: resposta.message, icon: 'success', confirmButtonColor: '#28a745'}).then(() => location.reload());
@@ -1740,6 +1830,7 @@ $hora_atual = date('H:i');
                 const text = await res.text();
                 let resposta = {};
                 try { resposta = JSON.parse(text); } catch (e) { resposta = {status:'error', message:'Resposta inválida: ' + text.substring(0,200)}; }
+                if (resposta.debug) console.log('DEBUG_CAIXA_REVISAO', resposta.debug);
                 
                 if (resposta.status === 'success') {
                     Swal.fire({title: 'Info', text: 'Caixa colocado em revisão', icon: 'info', confirmButtonColor: '#6c757d'}).then(() => location.reload());
