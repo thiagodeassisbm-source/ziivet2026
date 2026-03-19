@@ -16,13 +16,15 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
+$id_usuario_logado = (int)($_SESSION['usuario_id'] ?? 0);
 
 // Apenas administradores podem ENCERRAR (fazer o "cadeado").
 // A forma de detectar "admin" depende da configuração do sistema via permissões.
 $podeEncerrarCaixa = false;
 try {
     $podeEncerrarCaixa =
-        temPermissao('vendas', 'encerrar_caixa')
+        (($id_usuario_logado > 0) && ($id_usuario_logado === (int)$id_admin))
+        || temPermissao('vendas', 'encerrar_caixa')
         || temPermissao('vendas', 'encerrar')
         || temPermissao('relatorios', 'fechamento_caixa');
 } catch (Throwable $e) {

@@ -20,6 +20,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
+$id_usuario_logado = (int)($_SESSION['usuario_id'] ?? 0);
 $id_caixa = filter_input(INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT);
 
 // Gerar token CSRF para uso no JavaScript
@@ -72,6 +73,22 @@ function resolverCaixaParaAcao(PDO $pdo, int $id_admin, int $id_caixa): array {
     }
 
     return ['row' => null, 'whereField' => 'id', 'whereValue' => 0];
+}
+
+function usuarioPodeGerenciarEncerramento(int $id_admin, int $id_usuario_logado): bool {
+    // Regra principal: dono da empresa (admin raiz) sempre pode revisar/encerrar caixa.
+    if ($id_usuario_logado > 0 && $id_usuario_logado === $id_admin) {
+        return true;
+    }
+
+    // Regra complementar por permissões granulares.
+    try {
+        return temPermissao('vendas', 'encerrar_caixa')
+            || temPermissao('vendas', 'encerrar')
+            || temPermissao('relatorios', 'fechamento_caixa');
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 if (!$id_caixa) {
@@ -206,15 +223,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'colocar_revisao') {
     try {
         $pdo->beginTransaction();
 
-        $podeRevisar = false;
-        try {
-            $podeRevisar =
-                temPermissao('vendas', 'encerrar_caixa')
-                || temPermissao('vendas', 'encerrar')
-                || temPermissao('relatorios', 'fechamento_caixa');
-        } catch (Throwable $e) {
-            $podeRevisar = false;
-        }
+        $podeRevisar = usuarioPodeGerenciarEncerramento((int)$id_admin, (int)$id_usuario_logado);
 
         if (!$podeRevisar) {
             throw new Exception('Sem permissão para colocar em revisão.');
@@ -257,15 +266,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
         $pdo->beginTransaction();
 
         // Permissão: apenas admin finaliza (ENCERRADO).
-        $podeEncerrar = false;
-        try {
-            $podeEncerrar =
-                temPermissao('vendas', 'encerrar_caixa')
-                || temPermissao('vendas', 'encerrar')
-                || temPermissao('relatorios', 'fechamento_caixa');
-        } catch (Throwable $e) {
-            $podeEncerrar = false;
-        }
+        $podeEncerrar = usuarioPodeGerenciarEncerramento((int)$id_admin, (int)$id_usuario_logado);
         if (!$podeEncerrar) {
             throw new Exception('Sem permissão para encerrar caixa.');
         }
