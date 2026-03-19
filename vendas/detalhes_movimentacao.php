@@ -1029,6 +1029,7 @@ $hora_atual = date('H:i');
                                     SELECT 
                                         c.data_cadastro,
                                         c.categoria as tipo,
+                                        c.natureza as natureza,
                                         c.descricao,
                                         cf.nome_conta,
                                         COALESCE(f.nome_forma, c.forma_pagamento_detalhe, 'Outros') as forma_pagamento,
@@ -1053,7 +1054,17 @@ $hora_atual = date('H:i');
                             <tr>
                                 <td><?= $fmtMov($mov['data_cadastro'] ?? '', 'd/m') ?></td>
                                 <td><?= $fmtMov($mov['data_cadastro'] ?? '', 'H:i') ?></td>
-                                <td><span class="badge-status" style="background:#eee; color:#555"><?= htmlspecialchars((string)($mov['tipo'] ?? '-')) ?></span></td>
+                                <?php
+                                $tipoCat = strtoupper(trim((string)($mov['tipo'] ?? '-')));
+                                $naturezaCat = strtoupper(trim((string)($mov['natureza'] ?? '')));
+                                // Se por qualquer motivo a `categoria` vier trocada, mas a `natureza` estiver correta,
+                                // reclassificamos para o usuário não confundir Suprimento x Sangria.
+                                if (in_array($tipoCat, ['SUPRIMENTO', 'SANGRIA'], true)) {
+                                    if ($naturezaCat === 'RECEITA') $tipoCat = 'SUPRIMENTO';
+                                    if ($naturezaCat === 'DESPESA') $tipoCat = 'SANGRIA';
+                                }
+                                ?>
+                                <td><span class="badge-status" style="background:#eee; color:#555"><?= htmlspecialchars($tipoCat) ?></span></td>
                                 <td>
                                     <?= htmlspecialchars((string)($mov['descricao'] ?? '-')) ?>
                                     <?php if (!empty($mov['observacoes'])): ?>
