@@ -43,19 +43,54 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'adicionar_movimentacao') {
         $descricao = $_POST['descricao'] ?? '';
         $observacoes = $_POST['observacoes'] ?? '';
         
-        $tipo_lancamento = ($tipo == 'SUPRIMENTO') ? 'ENTRADA' : 'SAIDA';
-        
-        $sql = "INSERT INTO lancamentos 
-                (id_admin, tipo, categoria, descricao, forma_pagamento, id_conta, 
-                 observacoes, valor, status, id_caixa_referencia, 
-                 data_vencimento, data_pagamento, data_cadastro, 
-                 parcela_atual, total_parcelas) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PAGO', ?, NOW(), NOW(), NOW(), 1, 1)";
-        
+        // IMPORTANTE:
+        // `lancamentos` é uma VIEW e pode não ser estável para inserts (schema divergente).
+        // Para evitar erro de coluna desconhecida (ex: `id_conta`), inserimos diretamente em `contas`.
+        $natureza = ($tipo === 'SUPRIMENTO') ? 'Receita' : 'Despesa';
+
+        // Quando o modal não manda id_conta (ex: Suprimento/Sangria), tentamos usar a conta do caixa.
+        $id_conta_origem = $id_conta;
+        if (empty($id_conta_origem)) {
+            $stmtCaixa = $pdo->prepare("SELECT id_conta_origem FROM caixas WHERE id = ? AND id_admin = ?");
+            $stmtCaixa->execute([$id_caixa, $id_admin]);
+            $id_conta_origem = $stmtCaixa->fetchColumn() ?: null;
+        }
+
+        // Tenta mapear id_forma_pgto a partir do nome para que a VIEW `lancamentos` retorne a forma corretamente.
+        $id_forma_pgto = null;
+        if (!empty($forma_pagamento)) {
+            $stmtForma = $pdo->prepare("
+                SELECT id
+                FROM formas_pagamento
+                WHERE id_admin = ?
+                  AND UPPER(TRIM(nome_forma)) = UPPER(TRIM(?))
+                LIMIT 1
+            ");
+            $stmtForma->execute([$id_admin, $forma_pagamento]);
+            $id_forma_pgto = $stmtForma->fetchColumn() ?: null;
+        }
+
+        $descricaoFinal = $descricao !== '' ? $descricao : ($tipo . ' do caixa #' . $id_caixa);
+
+        $sql = "INSERT INTO contas
+                (id_admin, natureza, categoria, descricao, forma_pagamento_detalhe, id_forma_pgto,
+                 id_conta_origem, valor_total, valor_parcela, qtd_parcelas, status_baixa,
+                 id_caixa_referencia, observacoes, vencimento, data_pagamento, data_cadastro)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'PAGO', ?, ?, CURDATE(), NOW(), NOW())";
+
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            $id_admin, $tipo_lancamento, $tipo, $descricao, $forma_pagamento,
-            $id_conta, $observacoes, $valor, $id_caixa
+            $id_admin,
+            $natureza,
+            $tipo,
+            $descricaoFinal,
+            $forma_pagamento,
+            $id_forma_pgto,
+            $id_conta_origem,
+            $valor,
+            $valor,
+            $id_caixa,
+            $observacoes
         ]);
         
         $pdo->commit();
@@ -992,20 +1027,22 @@ $hora_atual = date('H:i');
                             try {
                                 $stmtMov = $pdo->prepare("
                                     SELECT 
-                                        l.data_cadastro,
-                                        l.categoria as tipo,
-                                        l.descricao,
-                                        c.nome_conta,
-                                        l.forma_pagamento,
-                                        l.valor,
-                                        l.observacoes
-                                    FROM lancamentos l
-                                    LEFT JOIN contas_financeiras c ON l.id_conta = c.id
-                                    WHERE l.id_caixa_referencia = ? 
-                                      AND l.categoria IN ('SUPRIMENTO', 'SANGRIA', 'DESPESA', 'TRANSFERENCIA')
-                                    ORDER BY l.data_cadastro DESC
+                                        c.data_cadastro,
+                                        c.categoria as tipo,
+                                        c.descricao,
+                                        cf.nome_conta,
+                                        COALESCE(f.nome_forma, c.forma_pagamento_detalhe, 'Outros') as forma_pagamento,
+                                        COALESCE(c.valor_parcela, c.valor_total, 0) as valor,
+                                        c.observacoes
+                                    FROM contas c
+                                    LEFT JOIN formas_pagamento f ON c.id_forma_pgto = f.id
+                                    LEFT JOIN contas_financeiras cf ON c.id_conta_origem = cf.id
+                                    WHERE c.id_caixa_referencia = ?
+                                      AND c.id_admin = ?
+                                      AND c.categoria IN ('SUPRIMENTO', 'SANGRIA', 'DESPESA', 'TRANSFERENCIA')
+                                    ORDER BY c.data_cadastro DESC
                                 ");
-                                $stmtMov->execute([$id_caixa]);
+                                $stmtMov->execute([$id_caixa, $id_admin]);
                                 $movLancamentos = $stmtMov->fetchAll(PDO::FETCH_ASSOC) ?: [];
                             } catch (Throwable $e) {
                                 $movLancamentos = [];
