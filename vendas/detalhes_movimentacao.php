@@ -282,28 +282,54 @@ try {
         $hasPkIdCaixas = false;
     }
 
+    // Importante:
+    // Em schemas legados, o link pode passar `pk_id` quando `id` fica 0.
+    // Se a busca por `id` retornar algum registro "parecido", a tela pode carregar o caixa errado.
+    // Por isso, quando existir pk_id, priorizamos buscar por pk_id.
     $modoBuscaCaixa = 'id';
-    $stmtCaixa = $pdo->prepare("
+    $caixaById = null;
+    $caixaByPk = null;
+
+    $stmtCaixaById = $pdo->prepare("
         SELECT c.*, u.nome as nome_usuario
         FROM caixas c
         LEFT JOIN usuarios u ON c.id_usuario = u.id
         WHERE c.id = ? AND c.id_admin = ?
+        LIMIT 1
     ");
-    $stmtCaixa->execute([$id_caixa, $id_admin]);
-    $caixa = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+    $stmtCaixaById->execute([$id_caixa, $id_admin]);
+    $caixaById = $stmtCaixaById->fetch(PDO::FETCH_ASSOC);
 
-    // Fallback para schema legado onde `id` pode ser 0 e o identificador real fica em `pk_id`.
-    if (!$caixa && $hasPkIdCaixas) {
-        $modoBuscaCaixa = 'pk_id';
-        $stmtCaixa = $pdo->prepare("
+    if ($hasPkIdCaixas) {
+        $stmtCaixaByPk = $pdo->prepare("
             SELECT c.*, u.nome as nome_usuario
             FROM caixas c
             LEFT JOIN usuarios u ON c.id_usuario = u.id
             WHERE c.pk_id = ? AND c.id_admin = ?
             LIMIT 1
         ");
-        $stmtCaixa->execute([$id_caixa, $id_admin]);
-        $caixa = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+        $stmtCaixaByPk->execute([$id_caixa, $id_admin]);
+        $caixaByPk = $stmtCaixaByPk->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if ($caixaByPk) {
+        // Priorizamos o que parece realmente "fechado/encerrado"
+        $statusPk = strtoupper(trim((string)($caixaByPk['status'] ?? '')));
+        $dataFechPk = (string)($caixaByPk['data_fechamento'] ?? '');
+        $okPk = in_array($statusPk, ['FECHADO', 'ENCERRADO'], true) && ($dataFechPk !== '' && $dataFechPk !== '0000-00-00 00:00:00');
+
+        // Se pk tem status/datas, usamos; caso contrário, ainda assim tentamos usar o pk quando o id não existe.
+        if ($okPk || !$caixaById) {
+            $caixa = $caixaByPk;
+            $modoBuscaCaixa = 'pk_id';
+        } else {
+            // Se pk não parece fechado e id existe, tenta usar o id.
+            $caixa = $caixaById ?: $caixaByPk;
+            $modoBuscaCaixa = $caixaById ? 'id' : 'pk_id';
+        }
+    } else {
+        $caixa = $caixaById;
+        $modoBuscaCaixa = 'id';
     }
 
     if (!$caixa) {
