@@ -25,6 +25,24 @@ $stmtEmp = $pdo->prepare("SELECT * FROM config_clinica WHERE id = 1");
 $stmtEmp->execute();
 $empresa = $stmtEmp->fetch(PDO::FETCH_ASSOC) ?: [];
 
+// Verificação real do certificado no filesystem (não apenas no banco)
+$stmtCertCfg = $pdo->query("SELECT caminho_arquivo FROM config_certificados WHERE id = 1");
+$certCfg = $stmtCertCfg ? ($stmtCertCfg->fetch(PDO::FETCH_ASSOC) ?: []) : [];
+$certArquivoDb = basename($certCfg['caminho_arquivo'] ?? ($config['certificado_arquivo'] ?? ''));
+$certDirs = [
+    dirname(__DIR__) . '/uploads/certificados/',   // /public_html/app/uploads/certificados
+    dirname(__DIR__, 2) . '/uploads/certificados/' // /public_html/uploads/certificados
+];
+$certificadoArquivoExiste = false;
+if (!empty($certArquivoDb)) {
+    foreach ($certDirs as $d) {
+        if (is_file($d . $certArquivoDb)) {
+            $certificadoArquivoExiste = true;
+            break;
+        }
+    }
+}
+
 // Diagnóstico: validar se o autoload e o pacote do NFePHP existem no diretório esperado
 $autoloadPath = __DIR__ . '/../vendor/autoload.php';
 $autoloadExists = file_exists($autoloadPath);
@@ -160,14 +178,17 @@ if ($autoloadExists && is_readable($autoloadPath)) {
 
             <!-- Certificado -->
             <div class="check-item">
-                <div class="check-icon <?= !empty($config['certificado_arquivo']) ? 'ok' : 'error' ?>">
-                    <i class="fas <?= !empty($config['certificado_arquivo']) ? 'fa-check' : 'fa-times' ?>"></i>
+                <div class="check-icon <?= $certificadoArquivoExiste ? 'ok' : 'error' ?>">
+                    <i class="fas <?= $certificadoArquivoExiste ? 'fa-check' : 'fa-times' ?>"></i>
                 </div>
                 <div class="check-text">
                     <h4>Certificado Digital</h4>
                     <p>
                         <?php if (!empty($config['certificado_arquivo'])): ?>
                             <?= $config['certificado_nome'] ?> - Válido até <?= date('d/m/Y', strtotime($config['certificado_validade'])) ?>
+                            <?php if (!$certificadoArquivoExiste): ?>
+                                <br><small style="color:#dc3545;">Arquivo físico não encontrado no servidor. Reenvie o certificado.</small>
+                            <?php endif; ?>
                         <?php else: ?>
                             Não enviado
                         <?php endif; ?>
@@ -213,7 +234,8 @@ if ($autoloadExists && is_readable($autoloadPath)) {
         <?php
         $tudoOk = !empty($empresa['cnpj']) 
                   && !empty($config['csc_id']) 
-                  && !empty($config['certificado_arquivo']) 
+                  && !empty($config['certificado_arquivo'])
+                  && $certificadoArquivoExiste
                   && $nfephpOk;
         ?>
 

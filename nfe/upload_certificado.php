@@ -86,8 +86,8 @@ try {
     
     $nome = $arquivo['name'];
     
-    // Criar pasta
-    $pasta = __DIR__ . '/../uploads/certificados';
+    // Criar pasta (fora de /app para persistir melhor entre deploys)
+    $pasta = dirname(__DIR__, 2) . '/uploads/certificados';
     if (!is_dir($pasta)) {
         mkdir($pasta, 0755, true);
     }
