@@ -296,8 +296,15 @@ if (!empty($filtro_usuario)) {
     $params[':id_usuario'] = $filtro_usuario;
 }
 if (!empty($filtro_status)) {
-    $sql .= " AND c.status = :status";
-    $params[':status'] = $filtro_status;
+    // Compatibilidade de filtro para variações legadas de "EM_REVISAO".
+    if (strtoupper(trim((string)$filtro_status)) === 'EM_REVISAO') {
+        $sql .= " AND (
+            UPPER(REPLACE(REPLACE(TRIM(c.status), '-', '_'), ' ', '_')) = 'EM_REVISAO'
+        )";
+    } else {
+        $sql .= " AND UPPER(TRIM(c.status)) = :status";
+        $params[':status'] = strtoupper(trim((string)$filtro_status));
+    }
 }
 
 $stmtCount = $pdo->prepare(str_replace('c.*, u.nome as nome_usuario', 'COUNT(*) as total', $sql));
@@ -920,14 +927,14 @@ $titulo_pagina = "Movimentação de Caixas";
                                 <td><?= htmlspecialchars($mov['nome_usuario']) ?></td>
                                 <td style="color: var(--verde); font-weight: 700;">
                                     <?php
-                                        $statusValor = strtoupper(trim((string)($mov['status'] ?? '')));
+                                        $statusRawValor = strtoupper(trim((string)($mov['status'] ?? '')));
+                                        $statusValor = str_replace([' ', '-'], '_', $statusRawValor);
+                                        $statusValor = preg_replace('/_+/', '_', $statusValor);
                                         $valorFech = (float)($mov['valor_fechamento'] ?? 0);
                                         $valorIni = (float)($mov['valor_inicial'] ?? 0);
-                                        // Para ABERTO/FECHADO/EM_REVISAO, se valor_fechamento vier zerado, exibe o valor inicial.
-                                        // ENCERRADO continua exibindo valor_fechamento consolidado.
-                                        $valorExibir = ($statusValor === 'ENCERRADO')
-                                            ? $valorFech
-                                            : (($valorFech > 0) ? $valorFech : $valorIni);
+                                        // Para ABERTO/FECHADO/EM_REVISAO (e variações), se valor_fechamento vier zerado, exibe valor inicial.
+                                        $isEncerrado = ($statusValor === 'ENCERRADO');
+                                        $valorExibir = $isEncerrado ? $valorFech : (($valorFech > 0) ? $valorFech : $valorIni);
                                     ?>
                                     R$ <?= number_format($valorExibir, 2, ',', '.') ?>
                                 </td>
@@ -936,7 +943,11 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
-                                    <?php $statusMov = strtoupper(trim((string)($mov['status'] ?? ''))); ?>
+                                    <?php
+                                        $statusMovRaw = strtoupper(trim((string)($mov['status'] ?? '')));
+                                        $statusMov = str_replace([' ', '-'], '_', $statusMovRaw);
+                                        $statusMov = preg_replace('/_+/', '_', $statusMov);
+                                    ?>
                                     <?php if($statusMov == 'ABERTO'): ?>
                                         <span class="status-aberto">
                                             <i class="fas fa-check-circle"></i> ABERTO
@@ -960,8 +971,8 @@ $titulo_pagina = "Movimentação de Caixas";
                                             </button>
                                         <?php endif; ?>
                                     <?php else: ?>
-                                        <span class="status-fechado" style="background:#d4edda; color:var(--verde);">
-                                            <i class="fas fa-check-double"></i> ENCERRADO
+                                        <span class="status-fechado" style="background:#e9ecef; color:#495057; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-block;">
+                                            <i class="fas fa-question-circle"></i> STATUS: <?= htmlspecialchars($statusMovRaw !== '' ? $statusMovRaw : 'N/D') ?>
                                         </span>
                                     <?php endif; ?>
                                 </td>
