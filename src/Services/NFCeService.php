@@ -140,6 +140,15 @@ class NFCeService
             // Dedup + validação
             $candidates = array_values(array_unique(array_filter($candidates)));
 
+            // Normalização por nome: trim + colapsa espaços + ignora caixa (maiúsc/minúsc)
+            $normalizeName = function (string $s): string {
+                $s = trim($s);
+                $s = trim($s, "\"'");
+                $s = preg_replace('/\s+/', ' ', $s);
+                return strtolower($s);
+            };
+            $certFilenameNorm = $normalizeName($certFilename);
+
             $foundPath = null;
             $tried = [];
             foreach ($certDirs as $dirTry) {
@@ -150,6 +159,29 @@ class NFCeService
                     if (file_exists($p)) {
                         $foundPath = $p;
                         break 2;
+                    }
+                }
+            }
+
+            // Tolerância extra: procura por nome normalizado dentro dos diretórios permitidos.
+            if (!$foundPath) {
+                foreach ($certDirs as $dirTry) {
+                    if (!is_dir($dirTry)) continue;
+                    $all = @scandir($dirTry);
+                    if (!is_array($all)) continue;
+
+                    foreach ($all as $entry) {
+                        if ($entry === '.' || $entry === '..') continue;
+                        if (!is_string($entry)) continue;
+                        $full = $dirTry . $entry;
+                        if (!is_file($full)) continue;
+
+                        $entryNorm = $normalizeName($entry);
+                        if ($entryNorm === $certFilenameNorm) {
+                            $tried[] = $full;
+                            $foundPath = $full;
+                            break 2;
+                        }
                     }
                 }
             }
