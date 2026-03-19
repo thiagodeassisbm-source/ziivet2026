@@ -25,12 +25,15 @@ $stmtEmp = $pdo->prepare("SELECT * FROM config_clinica WHERE id = 1");
 $stmtEmp->execute();
 $empresa = $stmtEmp->fetch(PDO::FETCH_ASSOC) ?: [];
 
-// Verificação real do certificado no filesystem (não apenas no banco)
+// Verificação real do certificado no filesystem (mesma lógica do serviço/diagnóstico)
 $stmtCertCfg = $pdo->query("SELECT caminho_arquivo FROM config_certificados WHERE id = 1");
 $certCfg = $stmtCertCfg ? ($stmtCertCfg->fetch(PDO::FETCH_ASSOC) ?: []) : [];
-$certArquivoDb = basename($certCfg['caminho_arquivo'] ?? ($config['certificado_arquivo'] ?? ''));
+$certArquivoPrimary = basename((string)($certCfg['caminho_arquivo'] ?? ''));
+$certArquivoLegacy = basename((string)($config['certificado_arquivo'] ?? ''));
+$certArquivoDb = $certArquivoPrimary !== '' ? $certArquivoPrimary : $certArquivoLegacy;
 $certDirs = [
-    dirname(__DIR__) . '/uploads/certificados/',   // /public_html/app/uploads/certificados
+    __DIR__ . '/../uploads/certificados/',         // /public_html/app/uploads/certificados
+    dirname(__DIR__) . '/uploads/certificados/',   // redundância segura
     dirname(__DIR__, 2) . '/uploads/certificados/' // /public_html/uploads/certificados
 ];
 $certificadoArquivoExiste = false;
@@ -43,59 +46,63 @@ $normalizeName = function (string $s): string {
     return strtolower($s);
 };
 
-if (!empty($certArquivoDb)) {
-    // 1) Tenta caminho exato
-    foreach ($certDirs as $d) {
-        $p = $d . $certArquivoDb;
+$nomesPrioritarios = array_values(array_unique(array_filter([$certArquivoPrimary, $certArquivoLegacy])));
+
+// 1) Primeiro tenta nomes explícitos do banco (novo e legado)
+foreach ($certDirs as $d) {
+    foreach ($nomesPrioritarios as $nomeTry) {
+        $p = $d . $nomeTry;
         if (is_file($p)) {
             $certificadoArquivoExiste = true;
             $certArquivoEncontrado = basename($p);
-            break;
+            break 2;
         }
     }
+}
 
-    // 2) Tenta comparação por nome normalizado (diferença de caixa/espaço)
-    if (!$certificadoArquivoExiste) {
-        $targetNorm = $normalizeName($certArquivoDb);
-        foreach ($certDirs as $d) {
-            if (!is_dir($d)) continue;
-            $all = @scandir($d);
-            if (!is_array($all)) continue;
-            foreach ($all as $entry) {
-                if ($entry === '.' || $entry === '..' || !is_string($entry)) continue;
-                $full = $d . $entry;
-                if (!is_file($full)) continue;
-                if ($normalizeName($entry) === $targetNorm) {
-                    $certificadoArquivoExiste = true;
-                    $certArquivoEncontrado = $entry;
-                    break 2;
-                }
+// 2) Comparação por nome normalizado
+if (!$certificadoArquivoExiste && $certArquivoDb !== '') {
+    $targetNorm = $normalizeName($certArquivoDb);
+    foreach ($certDirs as $d) {
+        if (!is_dir($d)) continue;
+        $all = @scandir($d);
+        if (!is_array($all)) continue;
+        foreach ($all as $entry) {
+            if ($entry === '.' || $entry === '..' || !is_string($entry)) continue;
+            $full = $d . $entry;
+            if (!is_file($full)) continue;
+            if ($normalizeName($entry) === $targetNorm) {
+                $certificadoArquivoExiste = true;
+                $certArquivoEncontrado = $entry;
+                break 2;
             }
         }
     }
 }
 
-// 3) Fallback: se existe exatamente 1 arquivo .p12/.pfx em qualquer diretório, assume ele.
+// 3) Fallback final: usa o certificado .p12/.pfx mais recente em qualquer diretório permitido.
 if (!$certificadoArquivoExiste) {
+    $pks = [];
     foreach ($certDirs as $d) {
         if (!is_dir($d)) continue;
         $all = @scandir($d);
         if (!is_array($all)) continue;
-        $pks = [];
         foreach ($all as $entry) {
             if ($entry === '.' || $entry === '..' || !is_string($entry)) continue;
             $full = $d . $entry;
             if (!is_file($full)) continue;
             $lower = strtolower($entry);
             if (str_ends_with($lower, '.p12') || str_ends_with($lower, '.pfx')) {
-                $pks[] = $entry;
+                $pks[] = $full;
             }
         }
-        if (count($pks) === 1) {
-            $certificadoArquivoExiste = true;
-            $certArquivoEncontrado = $pks[0];
-            break;
-        }
+    }
+    if (count($pks) >= 1) {
+        usort($pks, static function ($a, $b) {
+            return (@filemtime($b) ?: 0) <=> (@filemtime($a) ?: 0);
+        });
+        $certificadoArquivoExiste = true;
+        $certArquivoEncontrado = basename($pks[0]);
     }
 }
 
