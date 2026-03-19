@@ -312,6 +312,9 @@ if ($autoloadExists && is_readable($autoloadPath)) {
                 <button class="btn-testar" onclick="testarEmissao()">
                     <i class="fas fa-paper-plane"></i> Testar Emissão (Homologação)
                 </button>
+                <button class="btn-testar" style="margin-left:8px; background:linear-gradient(135deg,#6c757d 0%,#5a6268 100%);" onclick="executarDiagnosticoCertificado()">
+                    <i class="fas fa-stethoscope"></i> Diagnóstico Completo
+                </button>
             <?php else: ?>
                 <p style="color:#dc3545; margin-bottom:20px;">
                     <i class="fas fa-exclamation-triangle"></i> 
@@ -319,6 +322,9 @@ if ($autoloadExists && is_readable($autoloadPath)) {
                 </p>
                 <button class="btn-testar" disabled>
                     <i class="fas fa-paper-plane"></i> Testar Emissão (Homologação)
+                </button>
+                <button class="btn-testar" style="margin-left:8px; background:linear-gradient(135deg,#6c757d 0%,#5a6268 100%);" onclick="executarDiagnosticoCertificado()">
+                    <i class="fas fa-stethoscope"></i> Diagnóstico Completo
                 </button>
             <?php endif; ?>
         </div>
@@ -375,6 +381,51 @@ if ($autoloadExists && is_readable($autoloadPath)) {
                 .finally(() => {
                     btn.innerHTML = originalText;
                     btn.disabled = false;
+                });
+        }
+
+        function executarDiagnosticoCertificado() {
+            Swal.fire({
+                title: 'Gerando diagnóstico...',
+                text: 'Coletando dados técnicos do OpenSSL e do certificado',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            fetch('diagnostico_certificado.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status !== 'success') {
+                        throw new Error(data.mensagem || 'Falha ao gerar diagnóstico');
+                    }
+
+                    const d = data.diagnostico || {};
+                    const resumo = [
+                        `Causa raiz: ${d.root_cause || 'indefinida'}`,
+                        `Ação recomendada: ${d.recommended_action || 'n/a'}`,
+                        `Certificado resolvido: ${(d.certificado && d.certificado.resolved_path) ? d.certificado.resolved_path : 'nao encontrado'}`,
+                        `OpenSSL: ${(d.openssl && d.openssl.OPENSSL_VERSION_TEXT) ? d.openssl.OPENSSL_VERSION_TEXT : 'n/a'}`
+                    ].join('\n');
+
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Diagnóstico Técnico',
+                        html: `
+                            <p style="text-align:left;white-space:pre-line">${resumo}</p>
+                            <details style="text-align:left;margin-top:10px;">
+                                <summary><strong>Ver detalhes técnicos completos</strong></summary>
+                                <pre style="max-height:320px;overflow:auto;background:#111;color:#0f0;padding:10px;border-radius:8px;font-size:12px;">${JSON.stringify(d, null, 2)}</pre>
+                            </details>
+                        `,
+                        width: 800
+                    });
+                })
+                .catch(error => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Erro no Diagnóstico',
+                        text: error.message
+                    });
                 });
         }
     </script>
