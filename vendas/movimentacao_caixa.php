@@ -22,8 +22,27 @@ $id_usuario_logado = (int)($_SESSION['usuario_id'] ?? 0);
 // A forma de detectar "admin" depende da configuração do sistema via permissões.
 $podeEncerrarCaixa = false;
 try {
+    $isAdminPorCargo = false;
+    try {
+        $stmtAdmin = $pdo->prepare("
+            SELECT u.id_cargo, COALESCE(c.nome_cargo, '') AS nome_cargo
+            FROM usuarios u
+            LEFT JOIN cargos c ON c.id = u.id_cargo
+            WHERE u.id = ? AND u.id_admin = ?
+            LIMIT 1
+        ");
+        $stmtAdmin->execute([$id_usuario_logado, $id_admin]);
+        $rowAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $nomeCargo = strtoupper(trim((string)($rowAdmin['nome_cargo'] ?? '')));
+        $idCargo = (int)($rowAdmin['id_cargo'] ?? 0);
+        $isAdminPorCargo = ($idCargo === 1) || str_contains($nomeCargo, 'ADMIN');
+    } catch (Throwable $e) {
+        $isAdminPorCargo = false;
+    }
+
     $podeEncerrarCaixa =
         (($id_usuario_logado > 0) && ($id_usuario_logado === (int)$id_admin))
+        || $isAdminPorCargo
         || temPermissao('vendas', 'encerrar_caixa')
         || temPermissao('vendas', 'encerrar')
         || temPermissao('relatorios', 'fechamento_caixa');

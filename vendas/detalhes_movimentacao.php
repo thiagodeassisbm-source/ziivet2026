@@ -81,11 +81,36 @@ function usuarioPodeGerenciarEncerramento(int $id_admin, int $id_usuario_logado)
         return true;
     }
 
+    // Compatibilidade com instalações em que o "admin" é identificado por cargo/perfil.
+    // Se o usuário atual estiver com cargo ADMIN ou com permissões administrativas, libera.
+    global $pdo;
+    try {
+        $stmtAdmin = $pdo->prepare("
+            SELECT u.id_cargo, COALESCE(c.nome_cargo, '') AS nome_cargo
+            FROM usuarios u
+            LEFT JOIN cargos c ON c.id = u.id_cargo
+            WHERE u.id = ? AND u.id_admin = ?
+            LIMIT 1
+        ");
+        $stmtAdmin->execute([$id_usuario_logado, $id_admin]);
+        $rowAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+        $nomeCargo = strtoupper(trim((string)($rowAdmin['nome_cargo'] ?? '')));
+        $idCargo = (int)($rowAdmin['id_cargo'] ?? 0);
+
+        if ($idCargo === 1 || str_contains($nomeCargo, 'ADMIN')) {
+            return true;
+        }
+    } catch (Throwable $e) {
+        // segue para checagem por permissões
+    }
+
     // Regra complementar por permissões granulares.
     try {
         return temPermissao('vendas', 'encerrar_caixa')
             || temPermissao('vendas', 'encerrar')
-            || temPermissao('relatorios', 'fechamento_caixa');
+            || temPermissao('relatorios', 'fechamento_caixa')
+            || temPermissao('usuarios', 'listar')
+            || temPermissao('usuarios', 'alterar');
     } catch (Throwable $e) {
         return false;
     }
