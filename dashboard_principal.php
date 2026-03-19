@@ -44,7 +44,10 @@ $contas_pagar_30 = [];
 $contas_receber_30 = [];
 $ultimos_lancamentos_financeiros = [];
 
-$debug_fin = !empty($_GET['debug_fin']) && (string)$_GET['debug_fin'] !== '0';
+$debug_fin = (
+    (!empty($_GET['debug_fin']) && (string)$_GET['debug_fin'] !== '0')
+    || (!empty($_GET['debug']) && (string)$_GET['debug'] !== '0')
+);
 
 try {
     // ===== CARDS PRINCIPAIS =====
@@ -266,6 +269,18 @@ try {
 
 $titulo_pagina = "Dashboard Financeiro";
 
+// Se tudo ficou zerado, habilita debug automaticamente.
+$kpisZerados = (
+    abs((float)$receita_mes) < 0.00001
+    && abs((float)$despesas_mes) < 0.00001
+    && abs((float)$receber_pendente_30) < 0.00001
+    && abs((float)$pagar_pendente_30) < 0.00001
+    && abs((float)$fluxo_previsto_30) < 0.00001
+);
+if ($kpisZerados) {
+    $debug_fin = true;
+}
+
 if ($debug_fin) {
     try {
         $inicioMesDb = $inicio_mes;
@@ -442,6 +457,59 @@ if ($debug_fin) {
             font-weight: 800;
             margin: 0 0 5px 0;
             font-family: 'Exo', sans-serif;
+        }
+
+        .small-box p {
+            font-size: 16px;
+            margin: 0;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Exo', sans-serif;
+        }
+
+        .small-box .icon-bg {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            z-index: 0;
+            font-size: 70px;
+            color: rgba(0,0,0,0.12);
+            transition: all 0.3s ease;
+        }
+
+        .small-box:hover .icon-bg {
+            font-size: 80px;
+            transform: rotate(-10deg);
+        }
+
+        .small-box-footer {
+            position: relative;
+            text-align: center;
+            padding: 10px 0;
+            color: rgba(255,255,255,0.9);
+            display: block;
+            z-index: 10;
+            background: rgba(0,0,0,0.15);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-family: 'Exo', sans-serif;
+        }
+
+        .small-box-footer:hover {
+            color: #fff;
+            background: rgba(0,0,0,0.25);
+        }
+
+        .small-box-footer i {
+            margin-left: 8px;
+            transition: transform 0.3s;
+        }
+
+        .small-box:hover .small-box-footer i {
+            transform: translateX(5px);
         }
 
         /* Cores dos Cards - Padronizadas */
