@@ -85,6 +85,43 @@ try {
           AND (data_fechamento IS NULL OR data_fechamento = '0000-00-00 00:00:00')
     ");
     $stmtFixFech->execute([$id_admin]);
+
+    // Normalização defensiva de status após mudanças de schema/ENUM.
+    // Cenário comum: valores legados inválidos viram string vazia ('') no MySQL.
+    // Regras:
+    // - status vazio com data_fechamento preenchida => FECHADO
+    // - status vazio sem data_fechamento => ABERTO
+    // - variações textuais de revisão => EM_REVISAO
+    // - variações textuais de encerrado => ENCERRADO
+    $pdo->prepare("
+        UPDATE caixas
+        SET status = 'EM_REVISAO'
+        WHERE id_admin = ?
+          AND UPPER(REPLACE(REPLACE(TRIM(COALESCE(status, '')), '-', '_'), ' ', '_')) IN ('EM_REVISAO', 'EMREVISAO', 'REVISAO')
+    ")->execute([$id_admin]);
+
+    $pdo->prepare("
+        UPDATE caixas
+        SET status = 'ENCERRADO'
+        WHERE id_admin = ?
+          AND UPPER(REPLACE(REPLACE(TRIM(COALESCE(status, '')), '-', '_'), ' ', '_')) IN ('ENCERRADO', 'ENCERRADA', 'FINALIZADO', 'FINALIZADA')
+    ")->execute([$id_admin]);
+
+    $pdo->prepare("
+        UPDATE caixas
+        SET status = 'FECHADO'
+        WHERE id_admin = ?
+          AND (status IS NULL OR TRIM(status) = '')
+          AND (data_fechamento IS NOT NULL AND data_fechamento <> '0000-00-00 00:00:00')
+    ")->execute([$id_admin]);
+
+    $pdo->prepare("
+        UPDATE caixas
+        SET status = 'ABERTO'
+        WHERE id_admin = ?
+          AND (status IS NULL OR TRIM(status) = '')
+          AND (data_fechamento IS NULL OR data_fechamento = '0000-00-00 00:00:00')
+    ")->execute([$id_admin]);
 } catch (Throwable $e) {
     // Não quebrar tela por falha de auto-reparo.
 }

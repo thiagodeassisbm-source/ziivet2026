@@ -595,6 +595,22 @@ try {
         die("<script>alert('Caixa não encontrado!'); window.location.href='movimentacao_caixa.php';</script>");
     }
 
+    // Normalização defensiva para status vazio/legado após alteração de ENUM.
+    $statusCaixaRaw = strtoupper(trim((string)($caixa['status'] ?? '')));
+    if ($statusCaixaRaw === '' || $statusCaixaRaw === 'N/D') {
+        $temFechamento = !empty($caixa['data_fechamento']) && $caixa['data_fechamento'] !== '0000-00-00 00:00:00';
+        $statusNormalizado = $temFechamento ? 'FECHADO' : 'ABERTO';
+
+        if (($modoBuscaCaixa ?? 'id') === 'pk_id' && !empty($caixa['pk_id'])) {
+            $stmtNorm = $pdo->prepare("UPDATE caixas SET status = ? WHERE pk_id = ? AND id_admin = ?");
+            $stmtNorm->execute([$statusNormalizado, (int)$caixa['pk_id'], $id_admin]);
+        } elseif (!empty($caixa['id'])) {
+            $stmtNorm = $pdo->prepare("UPDATE caixas SET status = ? WHERE id = ? AND id_admin = ?");
+            $stmtNorm->execute([$statusNormalizado, (int)$caixa['id'], $id_admin]);
+        }
+        $caixa['status'] = $statusNormalizado;
+    }
+
     $formatarDataHoraExibicao = static function ($data, $hora = null): string {
         $dataStr = trim((string)$data);
         $horaStr = trim((string)$hora);
