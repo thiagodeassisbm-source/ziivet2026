@@ -898,7 +898,17 @@ $titulo_pagina = "Movimentação de Caixas";
                                 <td><?= $formatarDataHoraLista($mov['data_fechamento'] ?? '', $mov['hora_fechamento'] ?? '') ?></td>
                                 <td><?= htmlspecialchars($mov['nome_usuario']) ?></td>
                                 <td style="color: var(--verde); font-weight: 700;">
-                                    R$ <?= number_format($mov['valor_fechamento'] ?? $mov['valor_inicial'], 2, ',', '.') ?>
+                                    <?php
+                                        $statusValor = strtoupper(trim((string)($mov['status'] ?? '')));
+                                        $valorFech = (float)($mov['valor_fechamento'] ?? 0);
+                                        $valorIni = (float)($mov['valor_inicial'] ?? 0);
+                                        // Para ABERTO/FECHADO/EM_REVISAO, se valor_fechamento vier zerado, exibe o valor inicial.
+                                        // ENCERRADO continua exibindo valor_fechamento consolidado.
+                                        $valorExibir = ($statusValor === 'ENCERRADO')
+                                            ? $valorFech
+                                            : (($valorFech > 0) ? $valorFech : $valorIni);
+                                    ?>
+                                    R$ <?= number_format($valorExibir, 2, ',', '.') ?>
                                 </td>
                                 <td style="text-align: right; padding-right: 20px;">
                                     <a href="detalhes_movimentacao.php?id=<?= $idCaixaLinha ?>" class="btn-view" title="Ver Detalhes">

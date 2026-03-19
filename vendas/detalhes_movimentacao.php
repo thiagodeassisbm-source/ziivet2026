@@ -721,19 +721,28 @@ try {
                                        ORDER BY nome_conta")->fetchAll(PDO::FETCH_ASSOC);
     
     $stmt_total = $pdo->prepare("
-        SELECT 
-            (SELECT COALESCE(valor_inicial, 0) FROM caixas WHERE id = ?) +
-            (SELECT COALESCE(SUM(CASE 
-                WHEN tipo = 'ENTRADA' THEN valor 
-                WHEN tipo = 'SAIDA' THEN -valor 
-                END), 0) FROM lancamentos 
-             WHERE id_caixa_referencia = ? 
-             AND status = 'PAGO'
-             AND UPPER(TRIM(forma_pagamento)) = 'DINHEIRO')
-            as total
+        SELECT
+            ? + COALESCE(SUM(
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(c.natureza, ''))) = 'RECEITA' THEN COALESCE(c.valor_parcela, c.valor_total, 0)
+                    WHEN UPPER(TRIM(COALESCE(c.natureza, ''))) = 'DESPESA' THEN -COALESCE(c.valor_parcela, c.valor_total, 0)
+                    ELSE 0
+                END
+            ), 0) AS total
+        FROM contas c
+        LEFT JOIN formas_pagamento f
+            ON c.id_forma_pgto = f.id AND c.id_admin = f.id_admin
+        WHERE c.id_admin = ?
+          AND c.id_caixa_referencia = ?
+          AND UPPER(TRIM(COALESCE(c.status_baixa, ''))) = 'PAGO'
+          AND UPPER(TRIM(COALESCE(c.forma_pagamento_detalhe, f.nome_forma, ''))) = 'DINHEIRO'
+          AND (
+                c.categoria IS NULL
+                OR UPPER(TRIM(COALESCE(c.categoria, ''))) NOT IN ('FECHAMENTO_CAIXA', 'ABERTURA_CAIXA', 'CAIXA')
+              )
     ");
-    $stmt_total->execute([$id_caixa, $id_caixa]);
-    $total_em_caixa = $stmt_total->fetchColumn();
+    $stmt_total->execute([(float)($caixa['valor_inicial'] ?? 0), $id_admin, $id_caixa]);
+    $total_em_caixa = (float)$stmt_total->fetchColumn();
     
     // Hora atual para o modal de encerramento
     $hora_atual = date('H:i');
@@ -1828,6 +1837,20 @@ $hora_atual = date('H:i');
         }
         
         function abrirModalEncerramento() {
+            if (statusCaixa === 'ABERTO') {
+                Swal.fire({
+                    title: '<i class="fas fa-exclamation-triangle" style="color:#f39c12"></i> Caixa Aberto',
+                    html: '<p style="font-size:15px;color:#666">Feche o caixa antes de revisar/encerrar.</p>',
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="fas fa-lock"></i> Fechar caixa',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#f39c12'
+                }).then((result) => {
+                    if (result.isConfirmed) fecharCaixaParaEncerramento();
+                });
+                return;
+            }
+
             Swal.fire({
                 title: 'Encerramento do caixa <?= $caixa['id'] ?>',
                 html: `
@@ -1875,7 +1898,7 @@ $hora_atual = date('H:i');
                 if (result.isConfirmed) {
                     encerrarCaixa(result.value);
                 } else if (result.isDenied) {
-                    Swal.fire('Info', 'Caixa colocado em revisão', 'info');
+                    colocarEmRevisao();
                 }
             });
         }
@@ -1905,13 +1928,16 @@ $hora_atual = date('H:i');
         async function encerrarCaixa(dados) {
             const formData = new FormData();
             formData.append('acao', 'encerrar_caixa');
+            formData.append('csrf_token', csrfToken);
             for (let key in dados) {
                 formData.append(key, dados[key]);
             }
             
             try {
                 const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
-                const resposta = await res.json();
+                const text = await res.text();
+                let resposta = {};
+                try { resposta = JSON.parse(text); } catch (e) { resposta = {status:'error', message:'Resposta inválida: ' + text.substring(0,200)}; }
                 
                 if (resposta.status === 'success') {
                     Swal.fire({title: 'Sucesso!', text: resposta.message, icon: 'success', confirmButtonColor: '#28a745'}).then(() => location.reload());
@@ -1926,10 +1952,13 @@ $hora_atual = date('H:i');
         async function colocarEmRevisao() {
             const formData = new FormData();
             formData.append('acao', 'colocar_revisao');
+            formData.append('csrf_token', csrfToken);
             
             try {
                 const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
-                const resposta = await res.json();
+                const text = await res.text();
+                let resposta = {};
+                try { resposta = JSON.parse(text); } catch (e) { resposta = {status:'error', message:'Resposta inválida: ' + text.substring(0,200)}; }
                 
                 if (resposta.status === 'success') {
                     Swal.fire({title: 'Info', text: 'Caixa colocado em revisão', icon: 'info', confirmButtonColor: '#6c757d'}).then(() => location.reload());
