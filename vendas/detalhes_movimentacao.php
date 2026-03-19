@@ -923,180 +923,9 @@ $hora_atual = date('H:i');
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        // Status atual do caixa (injetado do PHP)
+        // Variáveis globais consumidas pelo script principal no final do arquivo.
         const statusCaixa = '<?= $caixa['status'] ?>';
         const csrfToken = '<?= $csrf_token ?>';
-        
-        function abrirModalEncerramento() {
-            // VERIFICAR SE O CAIXA ESTÁ ABERTO
-            if (statusCaixa === 'ABERTO') {
-                Swal.fire({
-                    title: '<i class="fas fa-exclamation-triangle" style="color:#f39c12"></i> Caixa Aberto',
-                    html: `
-                        <div style="text-align:center; padding:20px;">
-                            <p style="font-size:16px; color:#666; margin-bottom:20px;">
-                                O caixa ainda está <strong style="color:#f39c12;">ABERTO</strong>.<br>
-                                Para encerrar, é necessário <strong>fechar o caixa</strong> primeiro.
-                            </p>
-                            <p style="font-size:14px; color:#888;">
-                                Isso vai registrar o fim das operações do operador.<br>
-                                Depois você poderá prosseguir com o encerramento.
-                            </p>
-                        </div>
-                    `,
-                    showCancelButton: true,
-                    confirmButtonText: '<i class="fas fa-lock"></i> Sim, fechar o caixa',
-                    cancelButtonText: 'Cancelar',
-                    confirmButtonColor: '#f39c12',
-                    width: '500px'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        fecharCaixaParaEncerramento();
-                    }
-                });
-                return;
-            }
-            
-            // Se já está FECHADO, mostra o modal de encerramento
-            mostrarModalEncerramento();
-        }
-        
-        async function fecharCaixaParaEncerramento() {
-            const formData = new FormData();
-            formData.append('acao', 'fechar_caixa');
-            formData.append('csrf_token', csrfToken);
-            
-            Swal.fire({
-                title: 'Fechando caixa...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-            
-            try {
-                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
-                const text = await res.text();
-                console.log('Resposta fechar:', text);
-                
-                let resposta;
-                try {
-                    resposta = JSON.parse(text);
-                } catch(parseErr) {
-                    Swal.fire('Erro', 'Resposta inválida do servidor. Verifique o console.', 'error');
-                    return;
-                }
-                
-                if (resposta.status === 'success') {
-                    Swal.fire({
-                        title: 'Caixa Fechado!',
-                        text: 'Agora você pode prosseguir com o encerramento.',
-                        icon: 'success',
-                        confirmButtonColor: '#28a745'
-                    }).then(() => {
-                        location.reload();
-                    });
-                } else {
-                    Swal.fire('Erro', resposta.message || 'Erro desconhecido', 'error');
-                }
-            } catch (e) {
-                console.error('Erro ao fechar:', e);
-                Swal.fire('Erro', 'Erro de conexão ao fechar o caixa: ' + e.message, 'error');
-            }
-        }
-        
-        function mostrarModalEncerramento() {
-            Swal.fire({
-                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
-                html: `
-                    <div style="background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);padding:25px;border-radius:12px;text-align:center;margin:20px 0">
-                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
-                        <div style="font-size:36px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
-                        <input type="date" id="data_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
-                        <input type="time" id="hora_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
-                    </div>
-                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
-                    <select id="conta_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px">
-                        <option value="">Selecione...</option>
-                        <?php foreach($contas_financeiras as $conta): ?>
-                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
-                        <?php endforeach; ?>
-                    </select></div>
-                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
-                    <textarea id="comentario_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" rows="4" placeholder="Observações sobre o encerramento..."></textarea></div>
-                `,
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
-                denyButtonText: 'Colocar em revisão',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#1e40af',
-                denyButtonColor: '#6c757d',
-                width: '550px',
-                preConfirm: () => {
-                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
-                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
-                        return false;
-                    }
-                    return {
-                        id_conta_destino: document.getElementById('conta_enc').value,
-                        data_fechamento: document.getElementById('data_enc').value,
-                        hora_fechamento: document.getElementById('hora_enc').value,
-                        comentario: document.getElementById('comentario_enc').value
-                    };
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    encerrarCaixa(result.value);
-                } else if (result.isDenied) {
-                    colocarEmRevisao();
-                }
-            });
-        }
-        
-        async function encerrarCaixa(dados) {
-            const formData = new FormData();
-            formData.append('acao', 'encerrar_caixa');
-            formData.append('csrf_token', csrfToken);
-            for (let key in dados) {
-                formData.append(key, dados[key]);
-            }
-            
-            try {
-                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
-                const resposta = await res.json();
-                
-                if (resposta.status === 'success') {
-                    Swal.fire({title: 'Sucesso!', text: resposta.message, icon: 'success', confirmButtonColor: '#28a745'}).then(() => location.reload());
-                } else {
-                    Swal.fire('Erro', resposta.message, 'error');
-                }
-            } catch (e) {
-                console.error('Erro detalhes:', e);
-                Swal.fire('Erro', 'Erro ao encerrar caixa. Verifique o console.', 'error');
-            }
-        }
-        
-        async function colocarEmRevisao() {
-            const formData = new FormData();
-            formData.append('acao', 'colocar_revisao');
-            formData.append('csrf_token', csrfToken);
-            
-            try {
-                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', {method: 'POST', body: formData});
-                const resposta = await res.json();
-                
-                if (resposta.status === 'success') {
-                    Swal.fire({title: 'Info', text: 'Caixa colocado em revisão', icon: 'info', confirmButtonColor: '#6c757d'}).then(() => location.reload());
-                } else {
-                    Swal.fire('Erro', resposta.message, 'error');
-                }
-            } catch (e) {
-                Swal.fire('Erro', 'Erro ao colocar em revisão', 'error');
-            }
-        }
     </script>
 </head>
 <body>
@@ -1589,59 +1418,6 @@ $hora_atual = date('H:i');
             });
         }
         
-        function abrirModalEncerramento() {
-            Swal.fire({
-                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
-                html: `
-                    <div style="background:linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);padding:25px;border-radius:12px;text-align:center;margin:20px 0">
-                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
-                        <div style="font-size:36px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
-                        <input type="date" id="data_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
-                        <input type="time" id="hora_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
-                    </div>
-                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
-                    <select id="conta_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px">
-                        <option value="">Selecione...</option>
-                        <?php foreach($contas_financeiras as $conta): ?>
-                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
-                        <?php endforeach; ?>
-                    </select></div>
-                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
-                    <textarea id="comentario_enc" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px" rows="4" placeholder="Observações sobre o encerramento..."></textarea></div>
-                `,
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
-                denyButtonText: 'Colocar em revisão',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#1e40af',
-                denyButtonColor: '#6c757d',
-                width: '550px',
-                preConfirm: () => {
-                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
-                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
-                        return false;
-                    }
-                    return {
-                        id_conta_destino: document.getElementById('conta_enc').value,
-                        data_fechamento: document.getElementById('data_enc').value,
-                        hora_fechamento: document.getElementById('hora_enc').value,
-                        comentario: document.getElementById('comentario_enc').value
-                    };
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    encerrarCaixa(result.value);
-                } else if (result.isDenied) {
-                    colocarEmRevisao();
-                }
-            });
-        }
-        
         function abrirModalSuprimento() {
             Swal.fire({
                 title: 'Adicionar Suprimento',
@@ -1808,58 +1584,37 @@ $hora_atual = date('H:i');
                 if (result.isConfirmed) adicionarMovimentacao('TRANSFERENCIA', result.value);
             });
         }
-        
-        function abrirModalEncerramento() {
+
+        async function fecharCaixaParaEncerramento() {
+            const formData = new FormData();
+            formData.append('acao', 'fechar_caixa');
+            formData.append('csrf_token', csrfToken);
+
             Swal.fire({
-                title: 'Encerramento do caixa <?= $caixa['id'] ?>',
-                html: `
-                    <div style="background:#dbeafe;padding:20px;border-radius:12px;text-align:center;margin:20px 0">
-                        <div style="font-size:14px;color:#1e40af;font-weight:600;margin-bottom:8px">Em caixa</div>
-                        <div style="font-size:32px;font-weight:700;color:#1e40af">R$ <?= number_format($total_em_caixa, 2, ',', '.') ?></div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Data*</label>
-                        <input type="date" id="data_enc" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px" value="<?= date('Y-m-d') ?>"></div>
-                        <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Hora*</label>
-                        <input type="time" id="hora_enc" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px" value="<?= $hora_atual ?>"></div>
-                    </div>
-                    <div style="margin-bottom:15px"><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Conta destino*</label>
-                    <select id="conta_enc" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px">
-                        <option value="">Selecione...</option>
-                        <?php foreach($contas_financeiras as $conta): ?>
-                            <option value="<?= $conta['id'] ?>"><?= htmlspecialchars($conta['nome_conta']) ?></option>
-                        <?php endforeach; ?>
-                    </select></div>
-                    <div><label style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Comentário</label>
-                    <textarea id="comentario_enc" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px" rows="4"></textarea></div>
-                `,
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonText: '<i class="fas fa-check"></i> Encerrar caixa',
-                denyButtonText: 'Colocar em revisão',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#28a745',
-                denyButtonColor: '#6c757d',
-                width: '600px',
-                preConfirm: () => {
-                    if (!document.getElementById('conta_enc').value || !document.getElementById('data_enc').value || !document.getElementById('hora_enc').value) {
-                        Swal.showValidationMessage('Preencha todos os campos obrigatórios');
-                        return false;
-                    }
-                    return {
-                        id_conta_destino: document.getElementById('conta_enc').value,
-                        data_fechamento: document.getElementById('data_enc').value,
-                        hora_fechamento: document.getElementById('hora_enc').value,
-                        comentario: document.getElementById('comentario_enc').value
-                    };
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    encerrarCaixa(result.value);
-                } else if (result.isDenied) {
-                    Swal.fire('Info', 'Caixa colocado em revisão', 'info');
-                }
+                title: 'Fechando caixa...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
             });
+
+            try {
+                const res = await fetch('detalhes_movimentacao.php?id=<?= $id_caixa ?>', { method: 'POST', body: formData });
+                const text = await res.text();
+                let resposta = {};
+                try { resposta = JSON.parse(text); } catch (e) { resposta = { status: 'error', message: 'Resposta inválida: ' + text.substring(0, 200) }; }
+
+                if (resposta.status === 'success') {
+                    Swal.fire({
+                        title: 'Caixa Fechado!',
+                        text: 'Agora você pode prosseguir com revisão/encerramento.',
+                        icon: 'success',
+                        confirmButtonColor: '#28a745'
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire('Erro', resposta.message || 'Erro ao fechar caixa', 'error');
+                }
+            } catch (e) {
+                Swal.fire('Erro', 'Erro de conexão ao fechar caixa', 'error');
+            }
         }
         
         function abrirModalEncerramento() {
