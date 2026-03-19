@@ -280,31 +280,40 @@ try {
     $stmtF->execute([$id_admin]);
     $formasDoSistema = $stmtF->fetchAll(PDO::FETCH_ASSOC);
 
-    // Modificado para capturar totais Brutos e Líquidos, agrupando cartões de crédito/débito
-    // EXCLUIR SUPRIMENTO das vendas (suprimento é apenas fundo de troco, não é venda)
+    // Resumo de recebimentos por forma.
+    // IMPORTANTE: usar `contas` (tabela real), não `lancamentos` (view pode ficar desalinhada).
     $stmtResumo = $pdo->prepare("
         SELECT 
             CASE 
-                WHEN UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%CRÉDITO%' OR UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%CREDITO%' THEN 'CARTÃO DE CRÉDITO'
-                WHEN UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%DÉBITO%' OR UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%DEBITO%' THEN 'CARTÃO DE DÉBITO'
-                ELSE COALESCE(NULLIF(UPPER(TRIM(l.forma_pagamento)), ''), 'OUTROS')
+                WHEN UPPER(TRIM(COALESCE(f.nome_forma, c.forma_pagamento_detalhe, ''))) LIKE '%CRÉDITO%' 
+                  OR UPPER(TRIM(COALESCE(f.nome_forma, c.forma_pagamento_detalhe, ''))) LIKE '%CREDITO%' THEN 'CARTÃO DE CRÉDITO'
+                WHEN UPPER(TRIM(COALESCE(f.nome_forma, c.forma_pagamento_detalhe, ''))) LIKE '%DÉBITO%' 
+                  OR UPPER(TRIM(COALESCE(f.nome_forma, c.forma_pagamento_detalhe, ''))) LIKE '%DEBITO%' THEN 'CARTÃO DE DÉBITO'
+                ELSE COALESCE(NULLIF(UPPER(TRIM(COALESCE(f.nome_forma, c.forma_pagamento_detalhe, ''))), ''), 'OUTROS')
             END as forma_agrupada,
-            l.forma_pagamento as forma_original,
-            l.valor as valor_liquido,
-            COALESCE(v.valor_total, l.valor) as valor_bruto,
-            l.id_venda
-        FROM lancamentos l
-        LEFT JOIN vendas v ON l.id_venda = v.id
-        WHERE l.id_caixa_referencia = ?
-        AND UPPER(TRIM(COALESCE(l.tipo, ''))) = 'ENTRADA'
-        AND UPPER(TRIM(COALESCE(l.status, ''))) = 'PAGO'
-        AND (
-            l.categoria IS NULL
-            OR UPPER(TRIM(COALESCE(l.categoria, ''))) NOT IN ('SUPRIMENTO', 'CAIXA')
+            COALESCE(f.nome_forma, c.forma_pagamento_detalhe, 'Outros') as forma_original,
+            COALESCE(c.valor_parcela, c.valor_total, 0) as valor_liquido,
+            COALESCE(v.valor_total, c.valor_total, 0) as valor_bruto,
+            c.id_venda
+        FROM contas c
+        LEFT JOIN formas_pagamento f ON c.id_forma_pgto = f.id
+        LEFT JOIN vendas v ON v.id = (
+            CASE
+                WHEN c.id_venda IS NULL OR c.id_venda = 0 THEN CAST(c.documento AS UNSIGNED)
+                ELSE c.id_venda
+            END
         )
-        ORDER BY forma_agrupada, l.id
+        WHERE c.id_caixa_referencia = ?
+        AND c.id_admin = ?
+        AND UPPER(TRIM(COALESCE(c.natureza, ''))) = 'RECEITA'
+        AND UPPER(TRIM(COALESCE(c.status_baixa, ''))) = 'PAGO'
+        AND (
+            c.categoria IS NULL
+            OR UPPER(TRIM(COALESCE(c.categoria, ''))) NOT IN ('SUPRIMENTO', 'CAIXA', 'ABERTURA_CAIXA', 'FECHAMENTO_CAIXA')
+        )
+        ORDER BY forma_agrupada, c.id
     ");
-    $stmtResumo->execute([$id_caixa]);
+    $stmtResumo->execute([$id_caixa, $id_admin]);
     $resumoRaw = $stmtResumo->fetchAll(PDO::FETCH_ASSOC);
     
     // Processar para agrupar [FormaAgrupada => ['liquido'=>X, 'bruto'=>Y, 'detalhes'=>[...]]]
@@ -338,17 +347,57 @@ try {
     }
 
     $stmtLista = $pdo->prepare("
-        SELECT l.*, v.valor_total as venda_valor_bruto,
-        v.nfce_status, v.nfce_url, v.nfce_chave, v.id as id_real_venda
-        FROM lancamentos l
-        LEFT JOIN vendas v ON l.id_venda = v.id
-        WHERE l.id_caixa_referencia = ?
-        AND UPPER(TRIM(COALESCE(l.tipo, ''))) = 'ENTRADA'
-        AND UPPER(TRIM(COALESCE(l.status, ''))) = 'PAGO'
-        ORDER BY l.data_cadastro DESC
+        SELECT 
+            c.id,
+            c.descricao,
+            c.data_cadastro,
+            COALESCE(c.valor_parcela, c.valor_total, 0) as valor,
+            COALESCE(f.nome_forma, c.forma_pagamento_detalhe, 'Outros') as forma_pagamento,
+            c.id_venda,
+            c.documento,
+            CASE
+                WHEN c.entidade_tipo = 'cliente' THEN (SELECT nome FROM clientes WHERE id = c.id_entidade LIMIT 1)
+                WHEN c.entidade_tipo = 'fornecedor' THEN (SELECT nome_fantasia FROM fornecedores WHERE id = c.id_entidade LIMIT 1)
+                WHEN c.entidade_tipo = 'usuario' THEN (SELECT nome FROM usuarios WHERE id = c.id_entidade LIMIT 1)
+                ELSE NULL
+            END as fornecedor_cliente,
+            v.valor_total as venda_valor_bruto,
+            v.nfce_status,
+            v.nfce_url,
+            v.nfce_chave,
+            v.id as id_real_venda
+        FROM contas c
+        LEFT JOIN formas_pagamento f ON c.id_forma_pgto = f.id
+        LEFT JOIN vendas v ON v.id = (
+            CASE
+                WHEN c.id_venda IS NULL OR c.id_venda = 0 THEN CAST(c.documento AS UNSIGNED)
+                ELSE c.id_venda
+            END
+        )
+        WHERE c.id_caixa_referencia = ?
+          AND c.id_admin = ?
+          AND UPPER(TRIM(COALESCE(c.natureza, ''))) = 'RECEITA'
+          AND UPPER(TRIM(COALESCE(c.status_baixa, ''))) = 'PAGO'
+          AND (
+            c.categoria IS NULL
+            OR UPPER(TRIM(COALESCE(c.categoria, ''))) NOT IN ('SUPRIMENTO', 'CAIXA', 'ABERTURA_CAIXA', 'FECHAMENTO_CAIXA')
+          )
+        ORDER BY c.data_cadastro DESC
     ");
-    $stmtLista->execute([$id_caixa]);
+    $stmtLista->execute([$id_caixa, $id_admin]);
     $listaRecebimentos = $stmtLista->fetchAll(PDO::FETCH_ASSOC);
+
+    // Debug técnico: total de receitas pagas vinculadas ao caixa na tabela real.
+    $stmtDbg = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM contas c
+        WHERE c.id_caixa_referencia = ?
+          AND c.id_admin = ?
+          AND UPPER(TRIM(COALESCE(c.natureza, ''))) = 'RECEITA'
+          AND UPPER(TRIM(COALESCE(c.status_baixa, ''))) = 'PAGO'
+    ");
+    $stmtDbg->execute([$id_caixa, $id_admin]);
+    $debugTotalReceitasCaixa = (int)$stmtDbg->fetchColumn();
     
     $contas_financeiras = $pdo->query("SELECT id, nome_conta FROM contas_financeiras 
                                        WHERE id_admin = $id_admin AND status = 'Ativo' 
@@ -1025,7 +1074,14 @@ $hora_atual = date('H:i');
                         </thead>
                         <tbody>
                             <?php if(empty($listaRecebimentos)): ?>
-                                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #999;">Nenhum lançamento encontrado.</td></tr>
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                                        Nenhum lançamento encontrado.
+                                        <?php if (($debugTotalReceitasCaixa ?? 0) > 0): ?>
+                                            <br><small style="color:#dc3545;">Debug: existem <?= (int)$debugTotalReceitasCaixa ?> receitas pagas no caixa, mas foram filtradas por categoria.</small>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
                             <?php else: foreach($listaRecebimentos as $l): ?>
                             <tr>
                                 <td><?= date('d/m', strtotime($l['data_cadastro'])) ?></td>
