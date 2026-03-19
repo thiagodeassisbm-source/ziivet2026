@@ -48,7 +48,7 @@ $path_prefix = $path_prefix ?? '';
             </div>
 
             <div class="user-dropdown" id="userDropdownMenu">
-                <a href="<?= URL_BASE ?>minha_empresa.php" class="user-dropdown-item">
+                <a href="<?= URL_BASE ?>meu_perfil.php" class="user-dropdown-item">
                     <i class="fas fa-user-cog"></i> Meu Perfil
                 </a>
                 <div class="user-dropdown-divider"></div>

@@ -174,7 +174,7 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
         <!-- CONFIGURAÇÕES -->
         <div class="nav-group">
             <?php 
-                $config_pages = ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'minha_empresa.php', 'gerenciar_numeros_autorizados.php'];
+                $config_pages = ['configuracoes.php', 'listar_usuarios.php', 'usuarios.php', 'meu_perfil.php', 'gerenciar_numeros_autorizados.php'];
                 $isConfigActive = in_array($currentPage, $config_pages);
             ?>
             <a href="javascript:void(0)" onclick="toggleSubmenu(this)" class="nav-item has-submenu <?= $isConfigActive ? 'active-parent' : '' ?>">
@@ -184,7 +184,7 @@ $isInConsultas = (strpos($_SERVER['REQUEST_URI'], '/consultas/') !== false);
             </a>
             <div class="submenu" style="<?= $isConfigActive ? 'display:block' : '' ?>">
                 <a href="<?= URL_BASE ?>listar_usuarios.php" class="<?= ($currentPage == 'listar_usuarios.php' || $currentPage == 'usuarios.php') ? 'active' : '' ?>">Equipe e Permissões</a>
-                <a href="<?= URL_BASE ?>minha_empresa.php" class="<?= $currentPage == 'minha_empresa.php' ? 'active' : '' ?>">Dados do Perfil</a>
+                <a href="<?= URL_BASE ?>meu_perfil.php" class="<?= $currentPage == 'meu_perfil.php' ? 'active' : '' ?>">Dados do Perfil</a>
                 <a href="<?= URL_BASE ?>gerenciar_numeros_autorizados.php" class="<?= $currentPage == 'gerenciar_numeros_autorizados.php' ? 'active' : '' ?>">WhatsApp API</a>
             </div>
         </div>
