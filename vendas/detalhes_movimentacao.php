@@ -1334,11 +1334,32 @@ $hora_atual = date('H:i');
                                 <strong style="color:#28a745;">ABERTURA</strong> - <?= $formatarDataHoraExibicao($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '') ?><br>
                                 <small>Caixa aberto por <?= htmlspecialchars($caixa['nome_usuario'] ?? 'Operador') ?> com fundo de R$ <?= number_format($caixa['valor_inicial'], 2, ',', '.') ?></small>
                             </div>
-                            <?php if ($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
-                            <div style="padding:8px; background:#fbeaea; border-left:3px solid #dc3545; border-radius:4px;">
-                                <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?><br>
-                                <small>Caixa encerrado</small>
-                            </div>
+                            <?php foreach(($movLancamentos ?? []) as $mov): ?>
+                                <?php
+                                $tipoCat = strtoupper(trim((string)($mov['tipo'] ?? '-')));
+                                $naturezaCat = strtoupper(trim((string)($mov['natureza'] ?? '')));
+                                if (in_array($tipoCat, ['SUPRIMENTO', 'SANGRIA'], true)) {
+                                    if ($naturezaCat === 'RECEITA') $tipoCat = 'SUPRIMENTO';
+                                    if ($naturezaCat === 'DESPESA') $tipoCat = 'SANGRIA';
+                                }
+
+                                $tsMov = strtotime((string)($mov['data_cadastro'] ?? ''));
+                                $dtMov = ($tsMov !== false && $tsMov > 0) ? date('d/m/Y', $tsMov) : '---';
+                                $hrMov = ($tsMov !== false && $tsMov > 0) ? date('H:i', $tsMov) : '---';
+                                $valorMov = (float)($mov['valor'] ?? 0);
+                                ?>
+                                <div style="padding:8px; background:#fff; border-left:3px solid #6c757d; border-radius:4px;">
+                                    <strong style="color:#343a40;"><?= htmlspecialchars($tipoCat) ?></strong> - <?= $dtMov ?> <?= $hrMov ?><br>
+                                    <small><?= htmlspecialchars((string)($mov['descricao'] ?? '-')) ?><?= !empty($mov['observacoes']) ? ' • ' . htmlspecialchars((string)$mov['observacoes']) : '' ?></small>
+                                    <br><small>Conta: <?= htmlspecialchars((string)($mov['nome_conta'] ?? '-')) ?> • Forma: <?= htmlspecialchars((string)($mov['forma_pagamento'] ?? '-')) ?> • Valor: R$ <?= number_format($valorMov, 2, ',', '.') ?></small>
+                                </div>
+                            <?php endforeach; ?>
+
+                            <?php if (isset($mostrarFechamento) && $mostrarFechamento): ?>
+                                <div style="padding:8px; background:#fbeaea; border-left:3px solid #dc3545; border-radius:4px;">
+                                    <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?><br>
+                                    <small>Caixa encerrado</small>
+                                </div>
                             <?php endif; ?>
                         </div>
                     `;
