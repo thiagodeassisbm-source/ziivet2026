@@ -292,17 +292,72 @@ class NFCeService
         $certificate = null;
         $lastError = null;
 
-        // 1) Tentativa normal
+        $tryReadPfx = static function (string $content, string $pwd) {
+            return Certificate::readPfx($content, $pwd);
+        };
+
+        $tryReadPkcs12ViaOpenSsl = static function (string $content, string $pwd) {
+            if (!function_exists('openssl_pkcs12_read')) {
+                throw new Exception('openssl_pkcs12_read indisponivel no PHP.');
+            }
+
+            $bags = [];
+            if (!@openssl_pkcs12_read($content, $bags, $pwd)) {
+                $opensslErr = '';
+                while ($msg = openssl_error_string()) {
+                    $opensslErr .= trim($msg) . ' ';
+                }
+                if ($opensslErr === '') {
+                    $opensslErr = 'falha sem detalhe do OpenSSL';
+                }
+                throw new Exception("openssl_pkcs12_read falhou: {$opensslErr}");
+            }
+
+            $certPem = (string)($bags['cert'] ?? '');
+            $keyPem = (string)($bags['pkey'] ?? '');
+            $extraPem = '';
+            if (isset($bags['extracerts']) && is_array($bags['extracerts'])) {
+                $extraPem = implode("\n", $bags['extracerts']);
+            }
+            $pemBundle = trim($certPem . "\n" . $keyPem . "\n" . $extraPem);
+
+            if ($pemBundle === '') {
+                throw new Exception('PKCS12 lido, mas sem conteudo PEM utilizavel.');
+            }
+
+            if (method_exists(Certificate::class, 'readPem')) {
+                return Certificate::readPem($pemBundle);
+            }
+            if (method_exists(Certificate::class, 'fromPem')) {
+                return Certificate::fromPem($pemBundle);
+            }
+
+            throw new Exception('Classe Certificate sem metodo readPem/fromPem para fallback.');
+        };
+
+        // 1) Tentativa direta com readPfx
         foreach ($passwordCandidates as $pwdTry) {
             try {
-                $certificate = Certificate::readPfx($certContent, $pwdTry);
+                $certificate = $tryReadPfx($certContent, $pwdTry);
                 break;
             } catch (Exception $e) {
                 $lastError = $e;
             }
         }
 
-        // 2) Tentativa com OpenSSL legacy
+        // 2) Tentativa via openssl_pkcs12_read + PEM (desvia de parte das falhas do readPfx)
+        if (!$certificate) {
+            foreach ($passwordCandidates as $pwdTry) {
+                try {
+                    $certificate = $tryReadPkcs12ViaOpenSsl($certContent, $pwdTry);
+                    break;
+                } catch (Exception $e) {
+                    $lastError = $e;
+                }
+            }
+        }
+
+        // 3) Tentativas com OpenSSL legacy (CONF + MODULES)
         if (!$certificate) {
             $originalEnv = getenv('OPENSSL_CONF');
             $originalModulesEnv = getenv('OPENSSL_MODULES');
@@ -311,8 +366,6 @@ class NFCeService
                 $legacyConf = __DIR__ . "/../../legacy_openssl.cnf";
             }
 
-            // Em hospedagens compartilhadas, o OpenSSL 3 pode exigir OPENSSL_MODULES apontando
-            // para a pasta de providers (legacy/default). Tentamos caminhos comuns.
             $moduleCandidates = array_values(array_unique(array_filter([
                 $originalModulesEnv !== false ? (string)$originalModulesEnv : '',
                 '/opt/alt/php83/usr/lib64/ossl-modules',
@@ -329,7 +382,16 @@ class NFCeService
                     putenv("OPENSSL_MODULES={$modulesPath}");
                     foreach ($passwordCandidates as $pwdTry) {
                         try {
-                            $certificate = Certificate::readPfx($certContent, $pwdTry);
+                            $certificate = $tryReadPfx($certContent, $pwdTry);
+                            break 2;
+                        } catch (Exception $e) {
+                            $lastError = $e;
+                        }
+                    }
+
+                    foreach ($passwordCandidates as $pwdTry) {
+                        try {
+                            $certificate = $tryReadPkcs12ViaOpenSsl($certContent, $pwdTry);
                             break 2;
                         } catch (Exception $e) {
                             $lastError = $e;
