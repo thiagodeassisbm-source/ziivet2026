@@ -285,9 +285,9 @@ try {
     $stmtResumo = $pdo->prepare("
         SELECT 
             CASE 
-                WHEN UPPER(l.forma_pagamento) LIKE '%CRÉDITO%' OR UPPER(l.forma_pagamento) LIKE '%CREDITO%' THEN 'CARTÃO DE CRÉDITO'
-                WHEN UPPER(l.forma_pagamento) LIKE '%DÉBITO%' OR UPPER(l.forma_pagamento) LIKE '%DEBITO%' THEN 'CARTÃO DE DÉBITO'
-                ELSE COALESCE(UPPER(TRIM(l.forma_pagamento)), 'OUTROS')
+                WHEN UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%CRÉDITO%' OR UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%CREDITO%' THEN 'CARTÃO DE CRÉDITO'
+                WHEN UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%DÉBITO%' OR UPPER(TRIM(COALESCE(l.forma_pagamento, ''))) LIKE '%DEBITO%' THEN 'CARTÃO DE DÉBITO'
+                ELSE COALESCE(NULLIF(UPPER(TRIM(l.forma_pagamento)), ''), 'OUTROS')
             END as forma_agrupada,
             l.forma_pagamento as forma_original,
             l.valor as valor_liquido,
@@ -296,9 +296,12 @@ try {
         FROM lancamentos l
         LEFT JOIN vendas v ON l.id_venda = v.id
         WHERE l.id_caixa_referencia = ?
-        AND l.tipo = 'ENTRADA'
-        AND l.status = 'PAGO'
-        AND (l.categoria IS NULL OR l.categoria NOT IN ('SUPRIMENTO', 'Caixa'))
+        AND UPPER(TRIM(COALESCE(l.tipo, ''))) = 'ENTRADA'
+        AND UPPER(TRIM(COALESCE(l.status, ''))) = 'PAGO'
+        AND (
+            l.categoria IS NULL
+            OR UPPER(TRIM(COALESCE(l.categoria, ''))) NOT IN ('SUPRIMENTO', 'CAIXA')
+        )
         ORDER BY forma_agrupada, l.id
     ");
     $stmtResumo->execute([$id_caixa]);
@@ -340,8 +343,8 @@ try {
         FROM lancamentos l
         LEFT JOIN vendas v ON l.id_venda = v.id
         WHERE l.id_caixa_referencia = ?
-        AND l.tipo = 'ENTRADA'
-        AND l.status = 'PAGO'
+        AND UPPER(TRIM(COALESCE(l.tipo, ''))) = 'ENTRADA'
+        AND UPPER(TRIM(COALESCE(l.status, ''))) = 'PAGO'
         ORDER BY l.data_cadastro DESC
     ");
     $stmtLista->execute([$id_caixa]);
