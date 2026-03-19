@@ -335,6 +335,69 @@ class NFCeService
             throw new Exception('Classe Certificate sem metodo readPem/fromPem para fallback.');
         };
 
+        $tryReadPkcs12ViaOpenSslCli = static function (string $certFilePath, string $pwd) {
+            if ($certFilePath === '' || !is_file($certFilePath)) {
+                throw new Exception('Caminho do certificado invalido para fallback CLI.');
+            }
+            if (!function_exists('exec')) {
+                throw new Exception('exec desabilitado no PHP (fallback CLI indisponivel).');
+            }
+
+            $binCandidates = ['openssl', '/usr/bin/openssl', '/bin/openssl'];
+            $opensslBin = null;
+            foreach ($binCandidates as $bin) {
+                $versionCmd = escapeshellcmd($bin) . ' version 2>&1';
+                $out = [];
+                $code = 1;
+                @exec($versionCmd, $out, $code);
+                if ($code === 0) {
+                    $opensslBin = $bin;
+                    break;
+                }
+            }
+            if (!$opensslBin) {
+                throw new Exception('Binario openssl nao encontrado para fallback CLI.');
+            }
+
+            $tmpPem = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'ziipvet_cert_' . uniqid('', true) . '.pem';
+            $cmd = escapeshellcmd($opensslBin)
+                . ' pkcs12 -legacy -in ' . escapeshellarg($certFilePath)
+                . ' -passin ' . escapeshellarg('pass:' . $pwd)
+                . ' -nodes -out ' . escapeshellarg($tmpPem)
+                . ' 2>&1';
+
+            $output = [];
+            $exitCode = 1;
+            @exec($cmd, $output, $exitCode);
+
+            try {
+                if ($exitCode !== 0 || !is_file($tmpPem) || filesize($tmpPem) === 0) {
+                    $detail = trim(implode("\n", $output));
+                    if ($detail === '') {
+                        $detail = 'falha sem detalhes do comando openssl';
+                    }
+                    throw new Exception("openssl CLI falhou: {$detail}");
+                }
+
+                $pemBundle = (string)file_get_contents($tmpPem);
+                if (trim($pemBundle) === '') {
+                    throw new Exception('openssl CLI gerou PEM vazio.');
+                }
+
+                if (method_exists(Certificate::class, 'readPem')) {
+                    return Certificate::readPem($pemBundle);
+                }
+                if (method_exists(Certificate::class, 'fromPem')) {
+                    return Certificate::fromPem($pemBundle);
+                }
+                throw new Exception('Classe Certificate sem metodo readPem/fromPem para fallback CLI.');
+            } finally {
+                if (is_file($tmpPem)) {
+                    @unlink($tmpPem);
+                }
+            }
+        };
+
         // 1) Tentativa direta com readPfx
         foreach ($passwordCandidates as $pwdTry) {
             try {
@@ -409,6 +472,18 @@ class NFCeService
                     putenv("OPENSSL_MODULES=$originalModulesEnv");
                 } else {
                     putenv("OPENSSL_MODULES");
+                }
+            }
+        }
+
+        // 4) Ultimo fallback: openssl CLI com -legacy (contorna limitações do runtime PHP)
+        if (!$certificate) {
+            foreach ($passwordCandidates as $pwdTry) {
+                try {
+                    $certificate = $tryReadPkcs12ViaOpenSslCli($certPath, $pwdTry);
+                    break;
+                } catch (Exception $e) {
+                    $lastError = $e;
                 }
             }
         }

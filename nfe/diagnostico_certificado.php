@@ -192,6 +192,56 @@ try {
                 return ['ok' => false, 'err' => trim($msg)];
             };
 
+            $attemptPkcs12CliLegacy = static function (string $certFilePath, string $pwd): array {
+                if (!function_exists('exec')) {
+                    return ['ok' => false, 'err' => 'exec desabilitado'];
+                }
+                if (!is_file($certFilePath)) {
+                    return ['ok' => false, 'err' => 'arquivo do certificado nao encontrado para CLI'];
+                }
+
+                $binCandidates = ['openssl', '/usr/bin/openssl', '/bin/openssl'];
+                $opensslBin = null;
+                foreach ($binCandidates as $bin) {
+                    $probeCmd = escapeshellcmd($bin) . ' version 2>&1';
+                    $probeOut = [];
+                    $probeCode = 1;
+                    @exec($probeCmd, $probeOut, $probeCode);
+                    if ($probeCode === 0) {
+                        $opensslBin = $bin;
+                        break;
+                    }
+                }
+                if (!$opensslBin) {
+                    return ['ok' => false, 'err' => 'binario openssl nao encontrado'];
+                }
+
+                $tmpPem = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'ziipvet_diag_' . uniqid('', true) . '.pem';
+                $cmd = escapeshellcmd($opensslBin)
+                    . ' pkcs12 -legacy -in ' . escapeshellarg($certFilePath)
+                    . ' -passin ' . escapeshellarg('pass:' . $pwd)
+                    . ' -nodes -out ' . escapeshellarg($tmpPem)
+                    . ' 2>&1';
+                $out = [];
+                $code = 1;
+                @exec($cmd, $out, $code);
+                $detail = trim(implode("\n", $out));
+
+                try {
+                    if ($code !== 0) {
+                        return ['ok' => false, 'err' => $detail !== '' ? $detail : 'openssl CLI retornou erro'];
+                    }
+                    if (!is_file($tmpPem) || filesize($tmpPem) === 0) {
+                        return ['ok' => false, 'err' => 'openssl CLI nao gerou PEM valido'];
+                    }
+                    return ['ok' => true, 'err' => ''];
+                } finally {
+                    if (is_file($tmpPem)) {
+                        @unlink($tmpPem);
+                    }
+                }
+            };
+
             // A) tentativa direta
             foreach ($passwordCandidates as $pwd) {
                 $res = $attemptPkcs12($content, $pwd);
@@ -231,6 +281,24 @@ try {
                 }
             }
 
+            // C) tentativa via openssl CLI -legacy (se disponivel)
+            if ($rootCause !== 'ok' && $rootCause !== 'ok_legacy') {
+                foreach ($passwordCandidates as $pwd) {
+                    $res = $attemptPkcs12CliLegacy($foundPath, $pwd);
+                    $readAttempts[] = [
+                        'mode' => 'cli_legacy',
+                        'password_len' => strlen($pwd),
+                        'ok' => $res['ok'],
+                        'err' => $res['err'],
+                    ];
+                    if ($res['ok']) {
+                        $rootCause = 'ok_cli_legacy';
+                        $recommendedAction = 'Compatibilidade obtida via openssl CLI -legacy. O sistema ja consegue ler esse certificado.';
+                        break;
+                    }
+                }
+            }
+
             if ($originalConf !== false) {
                 putenv("OPENSSL_CONF={$originalConf}");
             } else {
@@ -242,7 +310,7 @@ try {
                 putenv("OPENSSL_MODULES");
             }
 
-            if ($rootCause !== 'ok' && $rootCause !== 'ok_legacy') {
+            if ($rootCause !== 'ok' && $rootCause !== 'ok_legacy' && $rootCause !== 'ok_cli_legacy') {
                 $allErrors = strtolower(implode(' | ', array_map(static fn($a) => (string)($a['err'] ?? ''), $readAttempts)));
                 $unsupported = str_contains($allErrors, 'unsupported');
                 $hasLegacySo = false;
