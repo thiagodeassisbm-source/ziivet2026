@@ -86,18 +86,40 @@ try {
     
     $nome = $arquivo['name'];
     
-    // Criar pasta (fora de /app para persistir melhor entre deploys)
-    $pasta = dirname(__DIR__, 2) . '/uploads/certificados';
-    if (!is_dir($pasta)) {
-        mkdir($pasta, 0755, true);
-    }
-    
+    // Criar pasta em locais candidatos.
+    // PRIORIDADE: app/uploads/certificados (visível no File Manager que você usa)
+    // FALLBACK: public_html/uploads/certificados
+    $pastasCandidatas = [
+        dirname(__DIR__) . '/uploads/certificados',      // /public_html/app/uploads/certificados
+        dirname(__DIR__, 2) . '/uploads/certificados',   // /public_html/uploads/certificados
+    ];
+
     // Salvar arquivo
     $nomeArquivo = 'cert_' . $id_admin . '_' . time() . '.' . $ext;
-    $caminhoCompleto = $pasta . '/' . $nomeArquivo;
-    
-    if (!move_uploaded_file($arquivo['tmp_name'], $caminhoCompleto)) {
-        throw new Exception('Erro ao salvar o arquivo.');
+    $caminhoCompleto = null;
+    $ultimoErro = '';
+
+    foreach ($pastasCandidatas as $pasta) {
+        if (!is_dir($pasta)) {
+            @mkdir($pasta, 0755, true);
+        }
+
+        if (!is_dir($pasta) || !is_writable($pasta)) {
+            $ultimoErro = "Pasta sem permissão de escrita: {$pasta}";
+            continue;
+        }
+
+        $destino = $pasta . '/' . $nomeArquivo;
+        if (@move_uploaded_file($arquivo['tmp_name'], $destino)) {
+            $caminhoCompleto = $destino;
+            break;
+        }
+
+        $ultimoErro = "Falha ao mover upload para: {$destino}";
+    }
+
+    if (!$caminhoCompleto || !file_exists($caminhoCompleto)) {
+        throw new Exception('Erro ao salvar o arquivo do certificado. ' . $ultimoErro);
     }
     
     // 1. Atualizar Tabela NOVA (config_certificados) - ESSENCIAL PARA O SERVIÇO DE EMISSÃO
