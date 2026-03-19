@@ -905,7 +905,8 @@ $hora_atual = date('H:i');
             <button onclick="abrirModalTransferencia()" style="padding:10px 16px; background:#17a2b8; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
                 <i class="fas fa-exchange-alt"></i> Transferência
             </button>
-            <?php if($caixa['status'] == 'ABERTO' || $caixa['status'] == 'FECHADO'): ?>
+            <?php $statusRenderTop = strtoupper(trim((string)($caixa['status'] ?? ''))); ?>
+            <?php if($statusRenderTop == 'ABERTO' || $statusRenderTop == 'FECHADO'): ?>
             <button onclick="abrirModalEncerramento()" style="padding:10px 16px; background:#343a40; color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:13px;">
                 <i class="fas fa-edit"></i> Revisar e encerrar
             </button>
@@ -932,7 +933,7 @@ $hora_atual = date('H:i');
                 <label>Abertura</label>
                 <span><?= $formatarDataHoraExibicao($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '') ?></span>
             </div>
-            <?php if($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
+            <?php if($statusRenderTop == 'FECHADO' || $statusRenderTop == 'ENCERRADO'): ?>
             <div class="info-block">
                 <label>Fechamento</label>
                 <span><?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?></span>
@@ -943,8 +944,9 @@ $hora_atual = date('H:i');
                 <?php 
                     $statusText = $caixa['status'] ?? 'N/A';
                     $statusClass = 'status-aberto';
-                    if ($statusText == 'FECHADO') $statusClass = 'status-fechado';
-                    if ($statusText == 'ENCERRADO') $statusClass = 'status-encerrado';
+                    $statusNorm = strtoupper(trim((string)$statusText));
+                    if ($statusNorm == 'FECHADO') $statusClass = 'status-fechado';
+                    if ($statusNorm == 'ENCERRADO') $statusClass = 'status-encerrado';
                 ?>
                 <span class="badge-status <?= $statusClass ?>" style="display:inline-block; min-width:80px; text-align:center;">
                     <?= htmlspecialchars($statusText) ?>

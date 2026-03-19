@@ -117,46 +117,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
     try {
         $pdo->beginTransaction();
 
-        $id_caixa = $_POST['id_caixa_fechar'];
+        $id_caixa_recebido = (int)($_POST['id_caixa_fechar'] ?? 0);
         $valor_fechamento = str_replace(['R$', '.', ','], ['', '', '.'], $_POST['valor_fechamento']);
         $id_conta_destino = $_POST['conta_destino'];
         $data_fechamento = date('Y-m-d H:i:s');
 
-        $stmtCaixa = $pdo->prepare("SELECT id_usuario FROM caixas WHERE id = ?");
-        $stmtCaixa->execute([$id_caixa]);
-        $id_usuario_caixa = $stmtCaixa->fetchColumn();
+        $hasPkIdCaixas = false;
+        try {
+            $hasPkIdCaixas = (bool)$pdo->query("SHOW COLUMNS FROM caixas LIKE 'pk_id'")->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            $hasPkIdCaixas = false;
+        }
+
+        // Localizar o caixa pelo identificador real (id ou pk_id) para evitar divergência de schema legado.
+        $whereField = 'id';
+        $caixaRow = null;
+
+        $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
+        $stmtCaixa->execute([$id_caixa_recebido, $id_admin]);
+        $caixaRow = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+
+        if (!$caixaRow && $hasPkIdCaixas) {
+            $whereField = 'pk_id';
+            $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
+            $stmtCaixa->execute([$id_caixa_recebido, $id_admin]);
+            $caixaRow = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if (!$caixaRow) {
+            throw new Exception('Caixa não encontrado para encerramento.');
+        }
+
+        $id_usuario_caixa = (int)$caixaRow['id_usuario'];
+        $id_caixa_ref = ($whereField === 'pk_id') ? (int)$caixaRow['pk_id'] : (int)$caixaRow['id'];
 
         $stmtUser = $pdo->prepare("SELECT id_conta_caixa, nome FROM usuarios WHERE id = ?");
         $stmtUser->execute([$id_usuario_caixa]);
         $dadosUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
         $id_conta_usuario = $dadosUser['id_conta_caixa']; 
 
-        $sql = "UPDATE caixas SET 
-                status = 'ENCERRADO', 
-                data_fechamento = :data, 
-                valor_fechamento = :valor, 
-                id_conta_fechamento = :conta 
-                WHERE id = :id AND id_admin = :admin";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            ':data' => $data_fechamento,
-            ':valor' => $valor_fechamento,
-            ':conta' => $id_conta_destino,
-            ':id' => $id_caixa,
-            ':admin' => $id_admin
-        ]);
+        if ($whereField === 'id') {
+            $sql = "UPDATE caixas SET 
+                    status = 'ENCERRADO', 
+                    data_fechamento = :data, 
+                    valor_fechamento = :valor, 
+                    id_conta_fechamento = :conta 
+                    WHERE id = :id AND id_admin = :admin";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':data' => $data_fechamento,
+                ':valor' => $valor_fechamento,
+                ':conta' => $id_conta_destino,
+                ':id' => $id_caixa_ref,
+                ':admin' => $id_admin
+            ]);
+        } else {
+            $sql = "UPDATE caixas SET 
+                    status = 'ENCERRADO', 
+                    data_fechamento = :data, 
+                    valor_fechamento = :valor, 
+                    id_conta_fechamento = :conta 
+                    WHERE pk_id = :id AND id_admin = :admin";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':data' => $data_fechamento,
+                ':valor' => $valor_fechamento,
+                ':conta' => $id_conta_destino,
+                ':id' => $id_caixa_ref,
+                ':admin' => $id_admin
+            ]);
+        }
 
         if ($id_conta_destino && $valor_fechamento > 0) {
-            $desc_lancamento = "ENCERRAMENTO DE CAIXA #" . $id_caixa . " (" . $dadosUser['nome'] . ")";
+            $desc_lancamento = "ENCERRAMENTO DE CAIXA #" . $id_caixa_ref . " (" . $dadosUser['nome'] . ")";
             
             $sqlSai = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia)
                        VALUES (?, 'Despesa', '1', ?, 'usuario', ?, ?, 'ENCERRAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
-            $pdo->prepare($sqlSai)->execute([$id_admin, $id_conta_usuario, $id_usuario_caixa, "SAÍDA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa]);
+            $pdo->prepare($sqlSai)->execute([$id_admin, $id_conta_usuario, $id_usuario_caixa, "SAÍDA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa_ref]);
 
             $sqlEnt = "INSERT INTO contas (id_admin, natureza, categoria, id_conta_origem, entidade_tipo, id_entidade, descricao, documento, vencimento, valor_total, valor_parcela, status_baixa, data_pagamento, data_cadastro, id_caixa_referencia)
                        VALUES (?, 'Receita', '1', ?, 'usuario', ?, ?, 'ENCERRAMENTO', NOW(), ?, ?, 'PAGO', NOW(), NOW(), ?)";
-            $pdo->prepare($sqlEnt)->execute([$id_admin, $id_conta_destino, $id_usuario_caixa, "ENTRADA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa]);
+            $pdo->prepare($sqlEnt)->execute([$id_admin, $id_conta_destino, $id_usuario_caixa, "ENTRADA: " . $desc_lancamento, $valor_fechamento, $valor_fechamento, $id_caixa_ref]);
         }
 
         $pdo->commit();
@@ -1286,7 +1329,9 @@ $titulo_pagina = "Movimentação de Caixas";
         });
     
         function abrirModalFechamento(dados) {
-            document.getElementById('modal_id_caixa').value = dados.id;
+            // Em schema legado, `id` pode ficar 0 e o identificador real vem de `pk_id`.
+            const idNumerico = Number(dados.id);
+            document.getElementById('modal_id_caixa').value = (idNumerico > 0) ? dados.id : (dados.pk_id ?? 0);
             document.getElementById('modalFechamento').classList.add('show');
         }
 
