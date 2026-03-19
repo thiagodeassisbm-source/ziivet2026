@@ -310,8 +310,9 @@ try {
 
     // Auto-reparo defensivo: se o caixa já estiver fechado/encerrado e sem data de fechamento,
     // preenche para evitar inconsistência visual e de relatório.
+    $statusCaixaAtual = strtoupper(trim((string)($caixa['status'] ?? '')));
     if (
-        in_array((string)($caixa['status'] ?? ''), ['FECHADO', 'ENCERRADO'], true) &&
+        in_array($statusCaixaAtual, ['FECHADO', 'ENCERRADO'], true) &&
         (empty($caixa['data_fechamento']) || $caixa['data_fechamento'] === '0000-00-00 00:00:00')
     ) {
         $dataFechAuto = !empty($caixa['data_cadastro']) ? $caixa['data_cadastro'] : date('Y-m-d H:i:s');
@@ -1087,7 +1088,10 @@ $hora_atual = date('H:i');
                             <?php endforeach; ?>
 
                             <!-- FECHAMENTO (quando aplicável) -->
-                            <?php if (($caixa['status'] ?? '') === 'FECHADO' || ($caixa['status'] ?? '') === 'ENCERRADO'): ?>
+                            <?php
+                                $statusCaixaRender = strtoupper(trim((string)($caixa['status'] ?? '')));
+                            ?>
+                            <?php if (in_array($statusCaixaRender, ['FECHADO', 'ENCERRADO'], true)): ?>
                                 <?php
                                 $contaFechNome = '-';
                                 if (!empty($caixa['id_conta_fechamento'])) {
