@@ -84,7 +84,13 @@ class NFCeService
         $certConfig = $stmtCert->fetch(PDO::FETCH_ASSOC);
 
         // Definir caminho e senha
-        $certFilename = basename($certConfig['caminho_arquivo'] ?? $this->configFiscal['certificado_arquivo'] ?? '');
+        // IMPORTANTE:
+        // - `config_certificados.caminho_arquivo` pode ficar com valor antigo (ex.: "convertido_...").
+        // - `configuracoes_fiscais.certificado_arquivo` normalmente reflete o último upload do formulário.
+        // Vamos considerar ambos.
+        $certFilenamePrimary = basename((string)($certConfig['caminho_arquivo'] ?? ''));
+        $certFilenameLegacy = basename((string)($this->configFiscal['certificado_arquivo'] ?? ''));
+        $certFilename = $certFilenamePrimary !== '' ? $certFilenamePrimary : $certFilenameLegacy;
         $certPassword = $certConfig['senha_certificado'] ?? "";
 
         // O servidor pode servir do subdiretório `app/`, mas os certificados podem estar na raiz de `public_html/`.
@@ -96,15 +102,20 @@ class NFCeService
         ];
 
         $certPath = null;
+        // Primeiro tenta arquivos explícitos vindos do banco (novo e legado)
+        $primaryNames = array_values(array_unique(array_filter([$certFilenamePrimary, $certFilenameLegacy])));
         foreach ($certDirs as $dirTry) {
-            $p = $dirTry . $certFilename;
-            if (!empty($certFilename) && file_exists($p)) {
-                $certPath = $p;
-                break;
+            foreach ($primaryNames as $n) {
+                $p = $dirTry . $n;
+                if (file_exists($p)) {
+                    $certPath = $p;
+                    $certFilename = $n;
+                    break 2;
+                }
             }
         }
 
-        if (empty($certFilename)) {
+        if (empty($certFilename) && empty($primaryNames)) {
             throw new Exception("Arquivo do certificado digital não informado (certFilename vazio).");
         }
 
@@ -112,6 +123,8 @@ class NFCeService
         // mas o arquivo original pode existir (ou vice-versa).
         if (!$certPath || !file_exists($certPath)) {
             $candidates = [];
+            // inclui os dois nomes conhecidos + nome ativo
+            $candidates = array_merge($candidates, $primaryNames);
             $candidates[] = $certFilename;
 
             // Caso a extensão no banco não coincida com a do arquivo no servidor
@@ -226,7 +239,7 @@ class NFCeService
                 }
             }
 
-            // Último fallback: se só existe um .p12/.pfx no diretório, usa ele.
+            // Último fallback: se existem certificados no diretório, usa o mais recente (mtime).
             if (!$foundPath) {
                 foreach ($certDirs as $dirTry) {
                     if (!is_dir($dirTry)) continue;
@@ -243,8 +256,11 @@ class NFCeService
                             $pks[] = $full;
                         }
                     }
-                    if (count($pks) === 1) {
-                        $tried[] = $pks[0];
+                    if (count($pks) >= 1) {
+                        usort($pks, static function ($a, $b) {
+                            return @filemtime($b) <=> @filemtime($a);
+                        });
+                        $tried[] = implode(', ', $pks);
                         $foundPath = $pks[0];
                         break;
                     }
