@@ -342,6 +342,9 @@ $titulo_pagina = "Dashboard Financeiro";
             grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
             gap: 15px;
             margin-bottom: 25px;
+            padding-left: 15px;
+            padding-right: 15px;
+            box-sizing: border-box;
         }
 
         /* CARDS MODERNOS */
@@ -388,6 +391,9 @@ $titulo_pagina = "Dashboard Financeiro";
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
+            padding-left: 15px;
+            padding-right: 15px;
+            box-sizing: border-box;
         }
 
         .panel-box {
