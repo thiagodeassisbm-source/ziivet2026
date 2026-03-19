@@ -856,10 +856,36 @@ $hora_atual = date('H:i');
                             <?php 
                             // Buscar movimentações (incluindo abertura e fechamento do caixa)
                             $movimentacoes = [];
+
+                            // Monta datetime robusto para campos que podem vir separados (data+hora)
+                            // ou já completos em um único campo datetime.
+                            $resolverDataHora = static function ($data, $hora = null): string {
+                                $dataStr = trim((string)$data);
+                                $horaStr = trim((string)$hora);
+
+                                // Se já vier datetime completo no campo de data, usa direto.
+                                if ($dataStr !== '' && preg_match('/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(:\d{2})?$/', $dataStr)) {
+                                    return $dataStr;
+                                }
+
+                                // Se vier só a data e hora separada.
+                                if ($dataStr !== '' && $horaStr !== '') {
+                                    return $dataStr . ' ' . $horaStr;
+                                }
+
+                                // Se vier só data.
+                                if ($dataStr !== '') {
+                                    return $dataStr . ' 00:00:00';
+                                }
+
+                                // Se não houver dados, usa momento atual como fallback seguro.
+                                return date('Y-m-d H:i:s');
+                            };
                             
                             // 1. ABERTURA DO CAIXA (sempre mostra)
+                            $dataAberturaMov = $resolverDataHora($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '');
                             $movimentacoes[] = [
-                                'data_cadastro' => $caixa['data_abertura'] . ' ' . $caixa['hora_abertura'],
+                                'data_cadastro' => $dataAberturaMov,
                                 'tipo' => 'ABERTURA',
                                 'descricao' => 'Abertura do Caixa #' . $caixa['id'] . ' - ' . ($caixa['nome_usuario'] ?? 'Operador'),
                                 'nome_conta' => null,
@@ -890,14 +916,19 @@ $hora_atual = date('H:i');
                             $movimentacoes = array_merge($movimentacoes, $movLancamentos);
                             
                             // 3. FECHAMENTO DO CAIXA (se FECHADO ou ENCERRADO)
-                            if (($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO') && $caixa['data_fechamento']) {
+                            if ($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO') {
                                 // Buscar nome da conta de fechamento
                                 $stmtContaFech = $pdo->prepare("SELECT nome_conta FROM contas_financeiras WHERE id = ?");
                                 $stmtContaFech->execute([$caixa['id_conta_fechamento']]);
                                 $contaFech = $stmtContaFech->fetch(PDO::FETCH_ASSOC);
+
+                                $dataFechamentoMov = $resolverDataHora(
+                                    $caixa['data_fechamento'] ?? '',
+                                    $caixa['hora_fechamento'] ?? ''
+                                );
                                 
                                 $movimentacoes[] = [
-                                    'data_cadastro' => $caixa['data_fechamento'],
+                                    'data_cadastro' => $dataFechamentoMov,
                                     'tipo' => 'FECHAMENTO',
                                     'descricao' => 'Encerramento do caixa',
                                     'nome_conta' => $contaFech['nome_conta'] ?? null,
