@@ -130,6 +130,39 @@ class NFCeService
                 }
             }
 
+            // Fallback adicional: procurar por "hint" numérico no nome do arquivo.
+            // Isso cobre cenarios onde o banco aponta para um prefixo diferente (convertido_/cert_/cert_final_/etc),
+            // mas o sufixo timestamp permanece igual.
+            if (!$foundPath) {
+                $timestampHint = null;
+                if (preg_match('/_(\d+)\.p12$/i', $certFilename, $m)) {
+                    $timestampHint = $m[1];
+                } else {
+                    // tente extrair qualquer sequência grande de dígitos antes do .p12
+                    if (preg_match('/(\d+)\.p12$/i', $certFilename, $m2)) {
+                        $timestampHint = $m2[1];
+                    }
+                }
+
+                if ($timestampHint) {
+                    $all = @scandir($certDir);
+                    if (is_array($all)) {
+                        foreach ($all as $entry) {
+                            if ($entry === '.' || $entry === '..') continue;
+                            if (!is_string($entry)) continue;
+                            $full = $certDir . $entry;
+                            if (!is_file($full)) continue;
+                            // procura por extensão e presença do hint
+                            if (str_contains($entry, $timestampHint) && str_ends_with(strtolower($entry), '.p12')) {
+                                $tried[] = $full;
+                                $foundPath = $full;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             if (!$foundPath) {
                 throw new Exception(
                     "Arquivo do certificado digital não encontrado. Tentativas:\n" . implode("\n", $tried)
