@@ -17,6 +17,18 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
+// Apenas administradores podem ENCERRAR (fazer o "cadeado").
+// A forma de detectar "admin" depende da configuração do sistema via permissões.
+$podeEncerrarCaixa = false;
+try {
+    $podeEncerrarCaixa =
+        temPermissao('vendas', 'encerrar_caixa')
+        || temPermissao('vendas', 'encerrar')
+        || temPermissao('relatorios', 'fechamento_caixa');
+} catch (Throwable $e) {
+    $podeEncerrarCaixa = false;
+}
+
 /**
  * Reparos defensivos para ambiente com schema antigo da tabela `caixas`.
  * - Corrige caixas com id=0 usando pk_id (quando existir).
@@ -115,6 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 // PROCESSAMENTO DE ENCERRAMENTO (ADMIN)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'encerrar_caixa') {
     try {
+        if (!$podeEncerrarCaixa) {
+            echo "<script>window.location.href='movimentacao_caixa.php?msg=sem_permissao';</script>";
+            exit;
+        }
+
         $pdo->beginTransaction();
 
         $id_caixa_recebido = (int)($_POST['id_caixa_fechar'] ?? 0);
@@ -133,19 +150,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
         $whereField = 'id';
         $caixaRow = null;
 
-        $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
+        $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario, status FROM caixas WHERE id = ? AND id_admin = ? LIMIT 1");
         $stmtCaixa->execute([$id_caixa_recebido, $id_admin]);
         $caixaRow = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
 
         if (!$caixaRow && $hasPkIdCaixas) {
             $whereField = 'pk_id';
-            $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
+            $stmtCaixa = $pdo->prepare("SELECT id, pk_id, id_usuario, status FROM caixas WHERE pk_id = ? AND id_admin = ? LIMIT 1");
             $stmtCaixa->execute([$id_caixa_recebido, $id_admin]);
             $caixaRow = $stmtCaixa->fetch(PDO::FETCH_ASSOC);
         }
 
         if (!$caixaRow) {
             throw new Exception('Caixa não encontrado para encerramento.');
+        }
+
+        $statusAtual = strtoupper(trim((string)($caixaRow['status'] ?? '')));
+        if ($statusAtual !== 'FECHADO') {
+            throw new Exception("Encerramento permitido apenas para caixas em status FECHADO. Status atual: {$statusAtual}");
         }
 
         $id_usuario_caixa = (int)$caixaRow['id_usuario'];
@@ -891,9 +913,11 @@ $titulo_pagina = "Movimentação de Caixas";
                                         <span class="status-fechado" style="background:var(--laranja); color:#fff; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-block; margin-right:5px;">
                                             <i class="fas fa-clock"></i> FECHADO
                                         </span>
-                                        <button class="btn-icon-action" title="Encerrar Caixa (Admin)" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
-                                            <i class="fas fa-lock"></i>
-                                        </button>
+                                        <?php if ($podeEncerrarCaixa): ?>
+                                            <button class="btn-icon-action" title="Encerrar Caixa (Admin)" onclick='abrirModalFechamento(<?= json_encode($mov) ?>)'>
+                                                <i class="fas fa-lock"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="status-fechado" style="background:#d4edda; color:var(--verde);">
                                             <i class="fas fa-check-double"></i> ENCERRADO
