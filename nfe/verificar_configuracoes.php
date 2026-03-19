@@ -34,10 +34,66 @@ $certDirs = [
     dirname(__DIR__, 2) . '/uploads/certificados/' // /public_html/uploads/certificados
 ];
 $certificadoArquivoExiste = false;
+$certArquivoEncontrado = '';
+
+$normalizeName = function (string $s): string {
+    $s = trim($s);
+    $s = trim($s, "\"'");
+    $s = preg_replace('/\s+/', ' ', $s);
+    return strtolower($s);
+};
+
 if (!empty($certArquivoDb)) {
+    // 1) Tenta caminho exato
     foreach ($certDirs as $d) {
-        if (is_file($d . $certArquivoDb)) {
+        $p = $d . $certArquivoDb;
+        if (is_file($p)) {
             $certificadoArquivoExiste = true;
+            $certArquivoEncontrado = basename($p);
+            break;
+        }
+    }
+
+    // 2) Tenta comparação por nome normalizado (diferença de caixa/espaço)
+    if (!$certificadoArquivoExiste) {
+        $targetNorm = $normalizeName($certArquivoDb);
+        foreach ($certDirs as $d) {
+            if (!is_dir($d)) continue;
+            $all = @scandir($d);
+            if (!is_array($all)) continue;
+            foreach ($all as $entry) {
+                if ($entry === '.' || $entry === '..' || !is_string($entry)) continue;
+                $full = $d . $entry;
+                if (!is_file($full)) continue;
+                if ($normalizeName($entry) === $targetNorm) {
+                    $certificadoArquivoExiste = true;
+                    $certArquivoEncontrado = $entry;
+                    break 2;
+                }
+            }
+        }
+    }
+}
+
+// 3) Fallback: se existe exatamente 1 arquivo .p12/.pfx em qualquer diretório, assume ele.
+if (!$certificadoArquivoExiste) {
+    foreach ($certDirs as $d) {
+        if (!is_dir($d)) continue;
+        $all = @scandir($d);
+        if (!is_array($all)) continue;
+        $pks = [];
+        foreach ($all as $entry) {
+            if ($entry === '.' || $entry === '..' || !is_string($entry)) continue;
+            $full = $d . $entry;
+            if (!is_file($full)) continue;
+            $lower = strtolower($entry);
+            if (str_ends_with($lower, '.p12') || str_ends_with($lower, '.pfx')) {
+                $pks[] = $entry;
+            }
+        }
+        if (count($pks) === 1) {
+            $certificadoArquivoExiste = true;
+            $certArquivoEncontrado = $pks[0];
             break;
         }
     }
@@ -149,6 +205,9 @@ if ($autoloadExists && is_readable($autoloadPath)) {
             <a href="configuracoes_nfe.php" class="btn-voltar">
                 <i class="fas fa-arrow-left"></i> Voltar
             </a>
+            <a href="verificar_configuracoes.php?refresh=<?= time() ?>" class="btn-voltar" style="margin-left:8px;">
+                <i class="fas fa-rotate-right"></i> Atualizar Status
+            </a>
         </div>
 
         <div class="check-card">
@@ -186,6 +245,9 @@ if ($autoloadExists && is_readable($autoloadPath)) {
                     <p>
                         <?php if (!empty($config['certificado_arquivo'])): ?>
                             <?= $config['certificado_nome'] ?> - Válido até <?= date('d/m/Y', strtotime($config['certificado_validade'])) ?>
+                            <?php if (!empty($certArquivoEncontrado)): ?>
+                                <br><small style="color:#6b7280;">Arquivo físico: <?= htmlspecialchars($certArquivoEncontrado, ENT_QUOTES, 'UTF-8') ?></small>
+                            <?php endif; ?>
                             <?php if (!$certificadoArquivoExiste): ?>
                                 <br><small style="color:#dc3545;">Arquivo físico não encontrado no servidor. Reenvie o certificado.</small>
                             <?php endif; ?>
