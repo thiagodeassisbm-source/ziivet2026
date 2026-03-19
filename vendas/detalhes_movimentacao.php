@@ -1043,37 +1043,6 @@ $hora_atual = date('H:i');
             </div>
         </div>
 
-        <!-- ========== BARRA DE BOTÕES FIXA ========== -->
-        <div style="position:fixed; bottom:0; left:240px; right:0; background:#2c3e50; padding:15px 30px; display:flex; gap:12px; z-index:9999; box-shadow:0 -4px 20px rgba(0,0,0,0.3);">
-            <button onclick="abrirModalLog()" style="padding:12px 20px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-search"></i> Log
-            </button>
-            <button onclick="abrirModalSuprimento()" style="padding:12px 20px; background:#28a745; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-plus-circle"></i> Suprimento
-            </button>
-            <button onclick="abrirModalSangria()" style="padding:12px 20px; background:#f39c12; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-minus-circle"></i> Sangria
-            </button>
-            <button onclick="abrirModalDespesa()" style="padding:12px 20px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-dollar-sign"></i> Despesa
-            </button>
-            <button onclick="abrirModalTransferencia()" style="padding:12px 20px; background:#17a2b8; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-exchange-alt"></i> Transferência
-            </button>
-            <?php if($caixa['status'] == 'ABERTO'): ?>
-            <button onclick="abrirModalEncerramento()" style="padding:12px 20px; background:#343a40; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-edit"></i> Revisar e encerrar
-            </button>
-            <?php endif; ?>
-            <div style="flex:1;"></div>
-            <button onclick="window.print()" style="padding:12px 20px; background:#fff; color:#333; border:2px solid #ddd; border-radius:8px; font-weight:700; cursor:pointer;">
-                <i class="fas fa-print"></i> Imprimir
-            </button>
-            <a href="movimentacao_caixa.php" style="padding:12px 20px; background:#6c757d; color:#fff; border:none; border-radius:8px; font-weight:700; cursor:pointer; text-decoration:none;">
-                <i class="fas fa-arrow-left"></i> Voltar
-            </a>
-        </div>
-
         <script>
             function emitirNFCe(idVenda, btn) {
                 const originalHtml = btn.innerHTML;
@@ -1111,34 +1080,6 @@ $hora_atual = date('H:i');
                 });
             }
         </script>
-        <!-- DEBUG: Status do caixa = <?= $caixa['status'] ?> -->
-        <div style="background:#ffcccc; padding:10px; margin:20px 0; border:2px solid red; font-weight:bold;">
-            🔍 DEBUG: Status do Caixa = "<?= $caixa['status'] ?>" | 
-            Condição ABERTO = <?= ($caixa['status'] == 'ABERTO') ? 'TRUE' : 'FALSE' ?>
-        </div>
-        
-        <?php if($caixa['status'] == 'ABERTO'): ?>
-        <div class="footer-actions">
-            <button class="btn-ziip bg-log" onclick="abrirModalLog()"><i class="fas fa-search"></i> Log</button>
-            <button class="btn-ziip bg-sup" onclick="abrirModalSuprimento()"><i class="fas fa-plus-circle"></i> Suprimento</button>
-            <button class="btn-ziip bg-san" onclick="abrirModalSangria()"><i class="fas fa-minus-circle"></i> Sangria</button>
-            <button class="btn-ziip bg-des" onclick="abrirModalDespesa()"><i class="fas fa-dollar-sign"></i> Despesa</button>
-            <button class="btn-ziip bg-tra" onclick="abrirModalTransferencia()"><i class="fas fa-exchange-alt"></i> Transferência</button>
-            <button class="btn-ziip bg-enc" onclick="abrirModalEncerramento()"><i class="fas fa-edit"></i> Revisar e encerrar</button>
-            
-            <div class="spacer"></div>
-            
-            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
-            <a href="movimentacao_caixa.php" class="btn-ziip bg-log"><i class="fas fa-arrow-left"></i> Voltar</a>
-        </div>
-        <?php else: ?>
-        <div class="footer-actions">
-            <button class="btn-ziip bg-log" onclick="abrirModalLog()"><i class="fas fa-search"></i> Log</button>
-            <button class="btn-ziip bg-prt" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
-            <a href="movimentacao_caixa.php" class="btn-ziip bg-log"><i class="fas fa-arrow-left"></i> Voltar</a>
-        </div>
-        <?php endif; ?>
-
     </main>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
