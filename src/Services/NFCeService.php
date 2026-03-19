@@ -86,9 +86,23 @@ class NFCeService
         // Definir caminho e senha
         $certFilename = basename($certConfig['caminho_arquivo'] ?? $this->configFiscal['certificado_arquivo'] ?? '');
         $certPassword = $certConfig['senha_certificado'] ?? "";
-        
-        $certDir = __DIR__ . '/../../uploads/certificados/';
-        $certPath = $certDir . $certFilename;
+
+        // O servidor pode servir do subdiretório `app/`, mas os certificados podem estar na raiz de `public_html/`.
+        // Então tentamos múltiplos diretórios possíveis.
+        $certDirs = [
+            __DIR__ . '/../../uploads/certificados/',      // /public_html/app/uploads/certificados
+            __DIR__ . '/../../../uploads/certificados/',    // /public_html/uploads/certificados
+            __DIR__ . '/../../../../uploads/certificados/', // fallback extra
+        ];
+
+        $certPath = null;
+        foreach ($certDirs as $dirTry) {
+            $p = $dirTry . $certFilename;
+            if (!empty($certFilename) && file_exists($p)) {
+                $certPath = $p;
+                break;
+            }
+        }
 
         if (empty($certFilename)) {
             throw new Exception("Arquivo do certificado digital não informado (certFilename vazio).");
@@ -96,7 +110,7 @@ class NFCeService
 
         // Fallback: em alguns cenários (ex.: pastas recriadas), o arquivo convertido pode não existir,
         // mas o arquivo original pode existir (ou vice-versa).
-        if (!file_exists($certPath)) {
+        if (!$certPath || !file_exists($certPath)) {
             $candidates = [];
             $candidates[] = $certFilename;
 
@@ -121,12 +135,15 @@ class NFCeService
 
             $foundPath = null;
             $tried = [];
-            foreach ($candidates as $name) {
-                $p = $certDir . $name;
-                $tried[] = $p;
-                if (file_exists($p)) {
-                    $foundPath = $p;
-                    break;
+            foreach ($certDirs as $dirTry) {
+                if (!is_dir($dirTry)) continue;
+                foreach ($candidates as $name) {
+                    $p = $dirTry . $name;
+                    $tried[] = $p;
+                    if (file_exists($p)) {
+                        $foundPath = $p;
+                        break 2;
+                    }
                 }
             }
 
@@ -145,18 +162,24 @@ class NFCeService
                 }
 
                 if ($timestampHint) {
-                    $all = @scandir($certDir);
-                    if (is_array($all)) {
+                    foreach ($certDirs as $dirTry) {
+                        if (!is_dir($dirTry)) continue;
+
+                        $all = @scandir($dirTry);
+                        if (!is_array($all)) continue;
+
                         foreach ($all as $entry) {
                             if ($entry === '.' || $entry === '..') continue;
                             if (!is_string($entry)) continue;
-                            $full = $certDir . $entry;
+
+                            $full = $dirTry . $entry;
                             if (!is_file($full)) continue;
+
                             // procura por extensão e presença do hint
                             if (str_contains($entry, $timestampHint) && str_ends_with(strtolower($entry), '.p12')) {
                                 $tried[] = $full;
                                 $foundPath = $full;
-                                break;
+                                break 2;
                             }
                         }
                     }
