@@ -346,7 +346,12 @@ if ($debug_fin) {
         echo htmlspecialchars(print_r($dbg, true));
         echo "</div>";
     } catch (Throwable $t) {
-        // não quebrar a página
+        // Não quebrar a página; mas deixar visível o motivo quando debug estiver ligado.
+        $msg = htmlspecialchars($t->getMessage(), ENT_QUOTES, 'UTF-8');
+        echo "<div style='position:fixed;top:10px;right:10px;z-index:999999;background:#220000;color:#ffb3b3;padding:12px 14px;border-radius:10px;max-width:520px;box-shadow:0 10px 30px rgba(0,0,0,0.35);font-family:monospace;font-size:12px;white-space:pre-wrap;'>";
+        echo "DEBUG_FINANCEIRO (dashboard_principal) - ERRO\n";
+        echo "msg={$msg}";
+        echo "</div>";
     }
 }
 ?>
