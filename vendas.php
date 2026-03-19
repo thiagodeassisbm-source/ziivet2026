@@ -1243,13 +1243,18 @@ try {
         // Função Unificada para Carregar Animais
         function carregarAnimais(idCliente = null, manterAnimalId = null) {
             var animalSelect = $('#sel_animal');
+            var csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+            if (!csrfToken) {
+                csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            }
             
             // Feedback de carregamento
             animalSelect.prop('disabled', true);
             
             var dataRequest = { 
                 acao: 'buscar_animais',
-                id_cliente: idCliente // Envia sempre, mesmo se vazio
+                id_cliente: idCliente, // Envia sempre, mesmo se vazio
+                csrf_token: csrfToken || ''
             };
 
             $.ajax({
