@@ -17,6 +17,9 @@ $id_admin = $_SESSION['id_admin'];
 $hoje = date('Y-m-d');
 $mes_atual = date('Y-m');
 $ano_atual = date('Y');
+$inicio_mes = date('Y-m-01');
+$fim_mes = date('Y-m-t');
+$data_limite_30 = date('Y-m-d', strtotime('+30 days'));
 
 // ===== INICIALIZAÇÃO DE VARIÁVEIS =====
 $total_clientes = 0;
@@ -26,6 +29,20 @@ $vacinas_criticas = 0;
 $ultimos_atendimentos = [];
 $vacinas_atrasadas = [];
 $vacinas_proximas = [];
+
+// ===== FINANCEIRO (Dashboard) =====
+$receita_mes = 0.0;
+$despesas_mes = 0.0;
+$lucro_mes = 0.0;
+$margem_mes = 0.0;
+
+$receber_pendente_30 = 0.0;
+$pagar_pendente_30 = 0.0;
+$fluxo_previsto_30 = 0.0;
+
+$contas_pagar_30 = [];
+$contas_receber_30 = [];
+$ultimos_lancamentos_financeiros = [];
 
 try {
     // ===== CARDS PRINCIPAIS =====
@@ -112,11 +129,146 @@ try {
     $stmt_vacinas_proximas->execute([$hoje, $id_admin, $hoje, $data_limite_vacina]);
     $vacinas_proximas = $stmt_vacinas_proximas->fetchAll(PDO::FETCH_ASSOC);
 
+    // ===== FINANÇAS: RECEITA/DESPESA/LUCRO (mês atual) =====
+    $exclusoes = "('SUPRIMENTO','ABERTURA_CAIXA','Caixa','FECHAMENTO_CAIXA')";
+
+    $stmtReceitaMes = $pdo->prepare("
+        SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
+        FROM contas c
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'RECEITA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.data_cadastro) BETWEEN ? AND ?
+    ");
+    $stmtReceitaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
+    $receita_mes = (float)$stmtReceitaMes->fetchColumn();
+
+    $stmtDespesaMes = $pdo->prepare("
+        SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
+        FROM contas c
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'DESPESA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+          AND DATE(c.data_cadastro) BETWEEN ? AND ?
+    ");
+    $stmtDespesaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
+    $despesas_mes = (float)$stmtDespesaMes->fetchColumn();
+
+    $lucro_mes = $receita_mes - $despesas_mes;
+    $margem_mes = ($receita_mes > 0) ? (($lucro_mes / $receita_mes) * 100.0) : 0.0;
+
+    // ===== FINANÇAS: RECEBER/PAGAR PENDENTE (próximos 30 dias) =====
+    $stmtReceber30 = $pdo->prepare("
+        SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
+        FROM contas c
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'RECEITA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
+          AND c.vencimento BETWEEN ? AND ?
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+    ");
+    $stmtReceber30->execute([$id_admin, $hoje, $data_limite_30]);
+    $receber_pendente_30 = (float)$stmtReceber30->fetchColumn();
+
+    $stmtPagar30 = $pdo->prepare("
+        SELECT COALESCE(SUM(COALESCE(c.valor_parcela, c.valor_total)), 0)
+        FROM contas c
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'DESPESA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
+          AND c.vencimento BETWEEN ? AND ?
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+    ");
+    $stmtPagar30->execute([$id_admin, $hoje, $data_limite_30]);
+    $pagar_pendente_30 = (float)$stmtPagar30->fetchColumn();
+
+    $fluxo_previsto_30 = $receber_pendente_30 - $pagar_pendente_30;
+
+    // ===== LISTAGENS FINANCEIRAS =====
+    $stmtContasPagar30 = $pdo->prepare("
+        SELECT 
+            c.id,
+            c.vencimento,
+            c.descricao,
+            c.documento,
+            COALESCE(c.valor_parcela, c.valor_total, 0) as valor,
+            CASE 
+                WHEN c.entidade_tipo = 'fornecedor' THEN f.nome_fantasia
+                WHEN c.entidade_tipo = 'cliente' THEN cl.nome
+                ELSE 'Outros'
+            END as nome_entidade
+        FROM contas c
+        LEFT JOIN fornecedores f 
+            ON c.id_entidade = f.id AND c.entidade_tipo = 'fornecedor'
+        LEFT JOIN clientes cl 
+            ON c.id_entidade = cl.id AND c.entidade_tipo = 'cliente'
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'DESPESA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
+          AND c.vencimento BETWEEN ? AND ?
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+        ORDER BY c.vencimento ASC
+        LIMIT 10
+    ");
+    $stmtContasPagar30->execute([$id_admin, $hoje, $data_limite_30]);
+    $contas_pagar_30 = $stmtContasPagar30->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $stmtContasReceber30 = $pdo->prepare("
+        SELECT 
+            c.id,
+            c.vencimento,
+            c.descricao,
+            c.documento,
+            COALESCE(c.valor_parcela, c.valor_total, 0) as valor,
+            CASE 
+                WHEN c.entidade_tipo = 'fornecedor' THEN f.nome_fantasia
+                WHEN c.entidade_tipo = 'cliente' THEN cl.nome
+                ELSE 'Outros'
+            END as nome_entidade
+        FROM contas c
+        LEFT JOIN fornecedores f 
+            ON c.id_entidade = f.id AND c.entidade_tipo = 'fornecedor'
+        LEFT JOIN clientes cl 
+            ON c.id_entidade = cl.id AND c.entidade_tipo = 'cliente'
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) = 'RECEITA'
+          AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
+          AND c.vencimento BETWEEN ? AND ?
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+        ORDER BY c.vencimento ASC
+        LIMIT 10
+    ");
+    $stmtContasReceber30->execute([$id_admin, $hoje, $data_limite_30]);
+    $contas_receber_30 = $stmtContasReceber30->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $stmtUltimosFinanceiros = $pdo->prepare("
+        SELECT
+            c.data_cadastro,
+            c.natureza,
+            c.descricao,
+            COALESCE(f.nome_forma, c.forma_pagamento_detalhe, 'Outros') as forma_pagamento,
+            COALESCE(c.valor_parcela, c.valor_total, 0) as valor,
+            c.status_baixa
+        FROM contas c
+        LEFT JOIN formas_pagamento f 
+            ON c.id_forma_pgto = f.id AND f.id_admin = c.id_admin
+        WHERE c.id_admin = ?
+          AND UPPER(TRIM(c.natureza)) IN ('RECEITA','DESPESA')
+          AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
+          AND (c.categoria IS NULL OR c.categoria NOT IN $exclusoes)
+        ORDER BY c.data_cadastro DESC
+        LIMIT 10
+    ");
+    $stmtUltimosFinanceiros->execute([$id_admin]);
+    $ultimos_lancamentos_financeiros = $stmtUltimosFinanceiros->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 } catch (PDOException $e) {
     error_log("Erro Dashboard: " . $e->getMessage());
 }
 
-$titulo_pagina = "Dashboard Principal";
+$titulo_pagina = "Dashboard Financeiro";
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -589,95 +741,126 @@ $titulo_pagina = "Dashboard Principal";
             Dashboard - Sistema de Gerenciamento Veterinário
         </h2>
 
-        <!-- CARDS PRINCIPAIS -->
+        <!-- CARDS PRINCIPAIS (FINANCEIRO) -->
         <div class="dashboard-grid">
             
-            <a href="listar_clientes.php" class="small-box bg-blue">
+            <a href="lancamentos.php" class="small-box bg-blue">
                 <div class="inner">
-                    <p>Total de Clientes</p>
-                    <h3><?= number_format($total_clientes, 0, ',', '.') ?></h3>
+                    <p>Receita Total (Mês)</p>
+                    <h3>R$ <?= number_format((float)$receita_mes, 2, ',', '.') ?></h3>
                 </div>
                 <div class="icon-bg">
-                    <i class="fas fa-users"></i>
+                    <i class="fas fa-arrow-trend-up"></i>
                 </div>
                 <span class="small-box-footer">
-                    Ver Detalhes <i class="fas fa-arrow-circle-right"></i>
+                    Ver lançamentos <i class="fas fa-arrow-circle-right"></i>
                 </span>
             </a>
 
-            <a href="listar_pacientes.php" class="small-box bg-cyan">
+            <a href="lancamentos.php" class="small-box bg-red">
                 <div class="inner">
-                    <p>Total de Pets</p>
-                    <h3><?= number_format($total_pets, 0, ',', '.') ?></h3>
+                    <p>Despesas Total (Mês)</p>
+                    <h3>R$ <?= number_format((float)$despesas_mes, 2, ',', '.') ?></h3>
                 </div>
                 <div class="icon-bg">
-                    <i class="fas fa-paw"></i>
+                    <i class="fas fa-arrow-trend-down"></i>
                 </div>
                 <span class="small-box-footer">
-                    Ver Detalhes <i class="fas fa-arrow-circle-right"></i>
+                    Ver lançamentos <i class="fas fa-arrow-circle-right"></i>
                 </span>
             </a>
 
-            <a href="consultas/listar_atendimentos.php" class="small-box bg-orange">
+            <a href="lancamentos.php" class="small-box bg-orange">
                 <div class="inner">
-                    <p>Atendimentos no Mês</p>
-                    <h3><?= number_format($atendimentos_mes, 0, ',', '.') ?></h3>
+                    <p>Lucro (Receita - Despesa)</p>
+                    <h3>R$ <?= number_format((float)$lucro_mes, 2, ',', '.') ?></h3>
+                    <p style="margin:0; opacity:0.9; font-size:13px; font-weight:700;">
+                        Margem: <?= number_format((float)$margem_mes, 1, ',', '.') ?>%
+                    </p>
                 </div>
                 <div class="icon-bg">
-                    <i class="fas fa-stethoscope"></i>
+                    <i class="fas fa-coins"></i>
                 </div>
                 <span class="small-box-footer">
-                    Ver Detalhes <i class="fas fa-arrow-circle-right"></i>
+                    Resultado do mês <i class="fas fa-arrow-circle-right"></i>
                 </span>
             </a>
 
-            <a href="consultas/listar_vacinas.php" class="small-box bg-red">
+            <a href="listar_contas.php" class="small-box bg-cyan">
                 <div class="inner">
-                    <p>Vacinas Atrasadas</p>
-                    <h3><?= number_format($vacinas_criticas, 0, ',', '.') ?></h3>
+                    <p>Fluxo Previsto (30 dias)</p>
+                    <h3>R$ <?= number_format((float)$fluxo_previsto_30, 2, ',', '.') ?></h3>
                 </div>
                 <div class="icon-bg">
-                    <i class="fas fa-syringe"></i>
+                    <i class="fas fa-right-left"></i>
                 </div>
                 <span class="small-box-footer">
-                    Ver Detalhes <i class="fas fa-arrow-circle-right"></i>
+                    Pendências & previsão <i class="fas fa-arrow-circle-right"></i>
                 </span>
             </a>
 
         </div>
 
-        <!-- PAINEIS DE INFORMAÇÕES -->
+        <!-- PAINEIS DE INFORMAÇÕES (FINANCEIRO) -->
         <div class="info-panels">
-            
-            <!-- ÚLTIMOS ATENDIMENTOS -->
+
+            <!-- FLUXO PREVISTO -->
             <div class="panel-box">
                 <div class="panel-header">
                     <div class="title">
-                        <i class="fas fa-history"></i>
-                        Últimos Atendimentos Realizados
+                        <i class="fas fa-right-left"></i>
+                        Fluxo Previsto (30 dias)
                     </div>
+                    <span class="badge"><?= number_format((float)$fluxo_previsto_30, 2, ',', '.') ?></span>
                 </div>
                 <div class="panel-body">
-                    <?php if (empty($ultimos_atendimentos)): ?>
+                    <div style="display:grid; grid-template-columns: 1fr; gap: 12px;">
+                        <div class="info-box" style="background:#e7f3ff;border-left-color:#17a2b8;">
+                            <div style="font-weight:800;">A receber (pendente)</div>
+                            <div style="margin-left:auto;font-weight:800;">R$ <?= number_format((float)$receber_pendente_30, 2, ',', '.') ?></div>
+                        </div>
+                        <div class="info-box" style="background:#ffe9e9;border-left-color:#b92426;">
+                            <div style="font-weight:800;">A pagar (pendente)</div>
+                            <div style="margin-left:auto;font-weight:800;">R$ <?= number_format((float)$pagar_pendente_30, 2, ',', '.') ?></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTAS A RECEBER -->
+            <div class="panel-box">
+                <div class="panel-header">
+                    <div class="title">
+                        <i class="fas fa-money-bill-wave"></i>
+                        Contas a Receber (Pendentes)
+                    </div>
+                    <?php if (!empty($contas_receber_30)): ?>
+                        <span class="badge"><?= count($contas_receber_30) ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="panel-body">
+                    <?php if (empty($contas_receber_30)): ?>
                         <div class="empty-state">
-                            <i class="fas fa-clipboard"></i>
-                            <p>Nenhum atendimento realizado recentemente</p>
+                            <i class="fas fa-check-circle"></i>
+                            <p>Nenhuma receita pendente nos próximos 30 dias</p>
                         </div>
                     <?php else: ?>
                         <ul class="item-list">
-                            <?php foreach($ultimos_atendimentos as $at): ?>
+                            <?php foreach ($contas_receber_30 as $c): ?>
                                 <li>
                                     <div class="item-header">
                                         <span class="item-title">
-                                            <i class="fas fa-paw"></i> <?= htmlspecialchars($at['nome_paciente']) ?>
+                                            <i class="fas fa-user"></i> <?= htmlspecialchars($c['nome_entidade'] ?? 'Outros') ?>
                                         </span>
                                         <span class="item-badge badge-success">
-                                            <?= date('d/m/Y', strtotime($at['data_atendimento'])) ?>
+                                            <?= !empty($c['vencimento']) ? date('d/m/Y', strtotime($c['vencimento'])) : '---' ?>
                                         </span>
                                     </div>
                                     <div class="item-details">
-                                        <span><i class="fas fa-user"></i> <?= htmlspecialchars($at['nome_cliente']) ?></span>
-                                        <span><i class="fas fa-notes-medical"></i> <?= htmlspecialchars($at['resumo']) ?></span>
+                                        <span><i class="fas fa-notes-medical"></i> <?= htmlspecialchars($c['descricao'] ?? '-') ?></span>
+                                        <span style="margin-left:auto;font-weight:800;">
+                                            R$ <?= number_format((float)($c['valor'] ?? 0), 2, ',', '.') ?>
+                                        </span>
                                     </div>
                                 </li>
                             <?php endforeach; ?>
@@ -686,137 +869,96 @@ $titulo_pagina = "Dashboard Principal";
                 </div>
             </div>
 
-            <!-- ACESSO RÁPIDO -->
+            <!-- CONTAS A PAGAR -->
             <div class="panel-box">
                 <div class="panel-header">
                     <div class="title">
-                        <i class="fas fa-rocket"></i>
-                        Acesso Rápido
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        Contas a Pagar (Pendentes)
                     </div>
+                    <?php if (!empty($contas_pagar_30)): ?>
+                        <span class="badge"><?= count($contas_pagar_30) ?></span>
+                    <?php endif; ?>
                 </div>
-                <div class="quick-actions">
-                    <a href="consultas/atendimento.php" class="btn-action btn-primary">
-                        <i class="fas fa-plus-circle"></i> Novo Atendimento
-                    </a>
-                    <a href="consultas/vacinas.php" class="btn-action btn-outline-success">
-                        <i class="fas fa-syringe"></i> Registrar Vacina
-                    </a>
-                    <a href="consultas/receita.php" class="btn-action btn-outline-primary">
-                        <i class="fas fa-file-prescription"></i> Emitir Receita
-                    </a>
-                    <a href="consultas/listar_vacinas.php" class="btn-action btn-danger">
-                        <i class="fas fa-exclamation-triangle"></i> Ver Vacinas Atrasadas
-                    </a>
+                <div class="panel-body">
+                    <?php if (empty($contas_pagar_30)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>Nenhuma despesa pendente nos próximos 30 dias</p>
+                        </div>
+                    <?php else: ?>
+                        <ul class="item-list">
+                            <?php foreach ($contas_pagar_30 as $c): ?>
+                                <li>
+                                    <div class="item-header">
+                                        <span class="item-title">
+                                            <i class="fas fa-truck"></i> <?= htmlspecialchars($c['nome_entidade'] ?? 'Outros') ?>
+                                        </span>
+                                        <span class="item-badge badge-danger">
+                                            <?= !empty($c['vencimento']) ? date('d/m/Y', strtotime($c['vencimento'])) : '---' ?>
+                                        </span>
+                                    </div>
+                                    <div class="item-details">
+                                        <span><i class="fas fa-notes-medical"></i> <?= htmlspecialchars($c['descricao'] ?? '-') ?></span>
+                                        <span style="margin-left:auto;font-weight:800;">
+                                            R$ <?= number_format((float)($c['valor'] ?? 0), 2, ',', '.') ?>
+                                        </span>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </div>
             </div>
 
-            <!-- PERIÓDICOS (VACINAS) -->
+            <!-- ÚLTIMOS LANÇAMENTOS -->
             <div class="panel-box">
                 <div class="panel-header">
                     <div class="title">
-                        <i class="fas fa-syringe"></i>
-                        Periódicos (Vacinas)
+                        <i class="fas fa-receipt"></i>
+                        Últimos Lançamentos Financeiros (PAGO)
                     </div>
                 </div>
-                
-                <div class="tabs-container">
-                    <button class="tab-button active" onclick="switchTab('atrasadas')">
-                        Vacinas Atrasadas
-                        <?php if (count($vacinas_atrasadas) > 0): ?>
-                            <span class="badge"><?= count($vacinas_atrasadas) ?></span>
-                        <?php endif; ?>
-                    </button>
-                    <button class="tab-button" onclick="switchTab('proximas')">
-                        Próximas 30 Dias
-                        <?php if (count($vacinas_proximas) > 0): ?>
-                            <span class="badge"><?= count($vacinas_proximas) ?></span>
-                        <?php endif; ?>
-                    </button>
-                </div>
-                
                 <div class="panel-body">
-                    <!-- TAB: VACINAS ATRASADAS -->
-                    <div id="tab-atrasadas" class="tab-content active">
-                        <?php if (empty($vacinas_atrasadas)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-check-circle"></i>
-                                <p>Nenhuma vacina atrasada</p>
-                            </div>
-                        <?php else: ?>
-                            <ul class="item-list">
-                                <?php foreach ($vacinas_atrasadas as $vacina): ?>
-                                    <li>
-                                        <div class="item-header">
-                                            <span class="item-title">
-                                                <i class="fas fa-paw"></i> <?= htmlspecialchars($vacina['nome_paciente']) ?>
-                                            </span>
-                                            <span class="item-badge badge-danger">
-                                                <?= $vacina['dias_atraso'] ? $vacina['dias_atraso'] . ' dias' : 'Nunca vacinado' ?>
-                                            </span>
-                                        </div>
-                                        <div class="item-details">
-                                            <span><i class="fas fa-user"></i> <?= htmlspecialchars($vacina['nome_cliente']) ?></span>
-                                            <?php if ($vacina['telefone']): ?>
-                                                <span><i class="fas fa-phone"></i> <?= htmlspecialchars($vacina['telefone']) ?></span>
-                                            <?php endif; ?>
-                                            <?php if ($vacina['ultima_vacina']): ?>
-                                                <span><i class="fas fa-calendar"></i> Última: <?= date('d/m/Y', strtotime($vacina['ultima_vacina'])) ?></span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <!-- TAB: VACINAS PRÓXIMAS -->
-                    <div id="tab-proximas" class="tab-content">
-                        <?php if (empty($vacinas_proximas)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-calendar-check"></i>
-                                <p>Nenhuma vacina a vencer nos próximos 30 dias</p>
-                            </div>
-                        <?php else: ?>
-                            <ul class="item-list">
-                                <?php foreach ($vacinas_proximas as $vacina): ?>
-                                    <li>
-                                        <div class="item-header">
-                                            <span class="item-title">
-                                                <i class="fas fa-paw"></i> <?= htmlspecialchars($vacina['nome_paciente']) ?>
-                                            </span>
-                                            <span class="item-badge badge-warning">
-                                                <?= $vacina['dias_restantes'] ?> dias
-                                            </span>
-                                        </div>
-                                        <div class="item-details">
-                                            <span><i class="fas fa-user"></i> <?= htmlspecialchars($vacina['nome_cliente']) ?></span>
-                                            <?php if ($vacina['telefone']): ?>
-                                                <span><i class="fas fa-phone"></i> <?= htmlspecialchars($vacina['telefone']) ?></span>
-                                            <?php endif; ?>
-                                            <span><i class="fas fa-calendar-plus"></i> Próxima: <?= date('d/m/Y', strtotime($vacina['proxima_vacina'])) ?></span>
-                                        </div>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-                    </div>
+                    <?php if (empty($ultimos_lancamentos_financeiros)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>Nenhum lançamento financeiro pago encontrado</p>
+                        </div>
+                    <?php else: ?>
+                        <ul class="item-list">
+                            <?php foreach ($ultimos_lancamentos_financeiros as $l): ?>
+                                <?php
+                                    $natureza = strtoupper(trim((string)($l['natureza'] ?? '')));
+                                    $badgeClass = $natureza === 'RECEITA' ? 'badge-success' : 'badge-danger';
+                                    $valor = (float)($l['valor'] ?? 0);
+                                ?>
+                                <li>
+                                    <div class="item-header">
+                                        <span class="item-title">
+                                            <i class="fas fa-<?= $natureza === 'RECEITA' ? 'arrow-up' : 'arrow-down' ?>"></i>
+                                            <?= htmlspecialchars($natureza) ?>
+                                        </span>
+                                        <span class="item-badge <?= $badgeClass ?>">
+                                            <?= !empty($l['data_cadastro']) ? date('d/m/Y', strtotime($l['data_cadastro'])) : '---' ?>
+                                        </span>
+                                    </div>
+                                    <div class="item-details">
+                                        <span><i class="fas fa-notes-medical"></i> <?= htmlspecialchars($l['descricao'] ?? '-') ?></span>
+                                        <span><i class="fas fa-credit-card"></i> <?= htmlspecialchars($l['forma_pagamento'] ?? '-') ?></span>
+                                        <span style="margin-left:auto;font-weight:800;">
+                                            R$ <?= number_format($valor, 2, ',', '.') ?>
+                                        </span>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </div>
             </div>
 
         </div>
 
     </main>
-
-    <script>
-        function switchTab(tabName) {
-            // Remover active de todos os botões e conteúdos
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            // Adicionar active ao botão e conteúdo clicados
-            event.target.classList.add('active');
-            document.getElementById('tab-' + tabName).classList.add('active');
-        }
-    </script>
 </body>
 </html>
