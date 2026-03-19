@@ -80,7 +80,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             $_POST['forma_pagamento'],
             $_POST['descricao']
         ]);
-        $id_caixa_gerado = $pdo->lastInsertId();
+        $id_caixa_gerado = (int)$pdo->lastInsertId();
+
+        // Compatibilidade com schema legado: em alguns bancos o AUTO_INCREMENT está em `pk_id`
+        // e a coluna `id` pode ficar como 0. Ajustamos para sempre ter código de caixa válido.
+        $hasPkIdCaixas = (bool)$pdo->query("SHOW COLUMNS FROM caixas LIKE 'pk_id'")->fetch(PDO::FETCH_ASSOC);
+        if ($hasPkIdCaixas) {
+            $stmtFix = $pdo->prepare("
+                SELECT pk_id, id
+                FROM caixas
+                WHERE pk_id = ?
+                LIMIT 1
+            ");
+            $stmtFix->execute([$id_caixa_gerado]);
+            $cx = $stmtFix->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            if ($cx && ((int)($cx['id'] ?? 0) <= 0)) {
+                $stmtMaxId = $pdo->prepare("SELECT COALESCE(MAX(id), 0) FROM caixas WHERE id_admin = ? AND id > 0");
+                $stmtMaxId->execute([$id_admin]);
+                $novoCodigo = (int)$stmtMaxId->fetchColumn() + 1;
+
+                $stmtUpdId = $pdo->prepare("UPDATE caixas SET id = ? WHERE pk_id = ? AND (id IS NULL OR id = 0)");
+                $stmtUpdId->execute([$novoCodigo, $id_caixa_gerado]);
+                $id_caixa_gerado = $novoCodigo;
+            } elseif ($cx && (int)$cx['id'] > 0) {
+                $id_caixa_gerado = (int)$cx['id'];
+            }
+        }
 
         // ✅✅✅ CORREÇÃO APLICADA AQUI ✅✅✅
         if ($valor > 0 && $conta_origem) {

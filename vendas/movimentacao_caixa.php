@@ -17,6 +17,45 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $id_admin = $_SESSION['id_admin'] ?? 1;
 
+/**
+ * Reparos defensivos para ambiente com schema antigo da tabela `caixas`.
+ * - Corrige caixas com id=0 usando pk_id (quando existir).
+ * - Preenche data_fechamento ausente em caixas já fechados/encerrados.
+ */
+$hasPkIdCaixas = false;
+try {
+    $hasPkIdCaixas = (bool)$pdo->query("SHOW COLUMNS FROM caixas LIKE 'pk_id'")->fetch(PDO::FETCH_ASSOC);
+
+    if ($hasPkIdCaixas) {
+        $stmtZero = $pdo->prepare("SELECT pk_id FROM caixas WHERE id_admin = ? AND (id IS NULL OR id = 0) ORDER BY pk_id ASC");
+        $stmtZero->execute([$id_admin]);
+        $rowsZero = $stmtZero->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($rowsZero)) {
+            $stmtMax = $pdo->prepare("SELECT COALESCE(MAX(id), 0) FROM caixas WHERE id_admin = ? AND id > 0");
+            $stmtMax->execute([$id_admin]);
+            $nextId = (int)$stmtMax->fetchColumn() + 1;
+
+            $stmtFixId = $pdo->prepare("UPDATE caixas SET id = ? WHERE pk_id = ? AND (id IS NULL OR id = 0)");
+            foreach ($rowsZero as $r0) {
+                $stmtFixId->execute([$nextId, (int)$r0['pk_id']]);
+                $nextId++;
+            }
+        }
+    }
+
+    $stmtFixFech = $pdo->prepare("
+        UPDATE caixas
+        SET data_fechamento = COALESCE(NULLIF(data_fechamento, '0000-00-00 00:00:00'), data_cadastro, NOW())
+        WHERE id_admin = ?
+          AND status IN ('FECHADO', 'ENCERRADO')
+          AND (data_fechamento IS NULL OR data_fechamento = '0000-00-00 00:00:00')
+    ");
+    $stmtFixFech->execute([$id_admin]);
+} catch (Throwable $e) {
+    // Não quebrar tela por falha de auto-reparo.
+}
+
 // PROCESSAMENTO DE EXCLUSÃO (ADMIN)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['acao'] === 'excluir_caixa') {
     ob_clean();
@@ -782,8 +821,14 @@ $titulo_pagina = "Movimentação de Caixas";
                         </tr>
                         <?php else: ?>
                             <?php foreach($movimentos as $mov): ?>
+                            <?php
+                                $idCaixaLinha = (int)($mov['id'] ?? 0);
+                                if ($idCaixaLinha <= 0 && isset($mov['pk_id'])) {
+                                    $idCaixaLinha = (int)$mov['pk_id'];
+                                }
+                            ?>
                             <tr>
-                                <td><span class="caixa-code">#<?= $mov['id'] ?></span></td>
+                                <td><span class="caixa-code">#<?= $idCaixaLinha ?></span></td>
                                 <td><?= $formatarDataHoraLista($mov['data_abertura'] ?? '', $mov['hora_abertura'] ?? '') ?></td>
                                 <td><?= $formatarDataHoraLista($mov['data_fechamento'] ?? '', $mov['hora_fechamento'] ?? '') ?></td>
                                 <td><?= htmlspecialchars($mov['nome_usuario']) ?></td>
@@ -791,7 +836,7 @@ $titulo_pagina = "Movimentação de Caixas";
                                     R$ <?= number_format($mov['valor_fechamento'] ?? $mov['valor_inicial'], 2, ',', '.') ?>
                                 </td>
                                 <td style="text-align: right; padding-right: 20px;">
-                                    <a href="detalhes_movimentacao.php?id=<?= $mov['id'] ?>" class="btn-view" title="Ver Detalhes">
+                                    <a href="detalhes_movimentacao.php?id=<?= $idCaixaLinha ?>" class="btn-view" title="Ver Detalhes">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     
