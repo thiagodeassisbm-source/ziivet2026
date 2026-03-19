@@ -87,10 +87,56 @@ class NFCeService
         $certFilename = basename($certConfig['caminho_arquivo'] ?? $this->configFiscal['certificado_arquivo'] ?? '');
         $certPassword = $certConfig['senha_certificado'] ?? "";
         
-        $certPath = __DIR__ . '/../../uploads/certificados/' . $certFilename;
-        
-        if (empty($certFilename) || !file_exists($certPath)) {
-            throw new Exception("Arquivo do certificado digital não encontrado em: $certPath");
+        $certDir = __DIR__ . '/../../uploads/certificados/';
+        $certPath = $certDir . $certFilename;
+
+        if (empty($certFilename)) {
+            throw new Exception("Arquivo do certificado digital não informado (certFilename vazio).");
+        }
+
+        // Fallback: em alguns cenários (ex.: pastas recriadas), o arquivo convertido pode não existir,
+        // mas o arquivo original pode existir (ou vice-versa).
+        if (!file_exists($certPath)) {
+            $candidates = [];
+            $candidates[] = $certFilename;
+
+            // Remove prefixos comuns
+            if (str_starts_with($certFilename, 'convertido_')) {
+                $candidates[] = substr($certFilename, strlen('convertido_'));
+            }
+            if (str_contains($certFilename, 'convertido_')) {
+                $candidates[] = str_replace('convertido_', '', $certFilename);
+            }
+
+            // Se o arquivo não convertido estiver com outro prefixo, tenta também
+            if (str_starts_with($certFilename, 'cert_')) {
+                $candidates[] = substr($certFilename, strlen('cert_'));
+            }
+            if (str_contains($certFilename, 'cert_')) {
+                $candidates[] = str_replace('cert_', '', $certFilename);
+            }
+
+            // Dedup + validação
+            $candidates = array_values(array_unique(array_filter($candidates)));
+
+            $foundPath = null;
+            $tried = [];
+            foreach ($candidates as $name) {
+                $p = $certDir . $name;
+                $tried[] = $p;
+                if (file_exists($p)) {
+                    $foundPath = $p;
+                    break;
+                }
+            }
+
+            if (!$foundPath) {
+                throw new Exception(
+                    "Arquivo do certificado digital não encontrado. Tentativas:\n" . implode("\n", $tried)
+                );
+            }
+
+            $certPath = $foundPath;
         }
         
         $certContent = file_get_contents($certPath);
