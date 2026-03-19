@@ -1253,7 +1253,7 @@ try {
             };
 
             $.ajax({
-                url: 'api/buscar_animais_venda.php', // URL Dedicada (Correção 403)
+                url: 'vendas.php',
                 type: 'POST', 
                 dataType: 'json',
                 cache: false,
@@ -1294,6 +1294,10 @@ try {
                     if (manterAnimalId && animalSelect.find('option[value="'+manterAnimalId+'"]').length > 0) {
                         animalSelect.val(manterAnimalId);
                     }
+                },
+                error: function() {
+                    animalSelect.empty();
+                    animalSelect.append('<option value="">Erro ao carregar animais</option>');
                 },
                 complete: function() {
                     animalSelect.prop('disabled', false);
