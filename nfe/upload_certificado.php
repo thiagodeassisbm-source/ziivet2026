@@ -24,7 +24,7 @@ try {
     }
     
     $arquivo = $_FILES['certificado_arquivo'];
-    $senha = $_POST['certificado_senha'] ?? '';
+    $senha = trim((string)($_POST['certificado_senha'] ?? ''));
     $email = $_POST['email_responsavel'] ?? '';
     
     if (empty($senha)) {

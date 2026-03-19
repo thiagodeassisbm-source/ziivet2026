@@ -91,7 +91,7 @@ class NFCeService
         $certFilenamePrimary = basename((string)($certConfig['caminho_arquivo'] ?? ''));
         $certFilenameLegacy = basename((string)($this->configFiscal['certificado_arquivo'] ?? ''));
         $certFilename = $certFilenamePrimary !== '' ? $certFilenamePrimary : $certFilenameLegacy;
-        $certPassword = $certConfig['senha_certificado'] ?? "";
+        $certPassword = (string)($certConfig['senha_certificado'] ?? "");
 
         // O servidor pode servir do subdiretório `app/`, mas os certificados podem estar na raiz de `public_html/`.
         // Então tentamos múltiplos diretórios possíveis.
@@ -277,30 +277,59 @@ class NFCeService
         }
         
         $certContent = file_get_contents($certPath);
-        
-        try {
-            // Tentar ler normalmente
-            $certificate = null;
+
+        // Alguns certificados antigos falham se a senha vier com espaços invisíveis.
+        // Tentamos a senha original e variações seguras (sem alterar o valor salvo no banco).
+        $passwordCandidates = array_values(array_unique(array_filter([
+            $certPassword,
+            trim($certPassword),
+        ], static fn($v) => $v !== '')));
+
+        if (count($passwordCandidates) === 0) {
+            $passwordCandidates = [''];
+        }
+
+        $certificate = null;
+        $lastError = null;
+
+        // 1) Tentativa normal
+        foreach ($passwordCandidates as $pwdTry) {
             try {
-                $certificate = Certificate::readPfx($certContent, $certPassword);
+                $certificate = Certificate::readPfx($certContent, $pwdTry);
+                break;
             } catch (Exception $e) {
-                // Se falhar, tentar com Legacy Provider (Truque)
-                $originalEnv = getenv('OPENSSL_CONF');
-                putenv("OPENSSL_CONF=" . __DIR__ . "/../../legacy_openssl.cnf");
-                
-                try {
-                    $certificate = Certificate::readPfx($certContent, $certPassword);
-                } catch (Exception $e2) {
-                    throw $e; // Lança o erro original se nem o truque funcionar
-                } finally {
-                    // Restaurar ambiente
-                    if ($originalEnv !== false) putenv("OPENSSL_CONF=$originalEnv");
-                    else putenv("OPENSSL_CONF");
+                $lastError = $e;
+            }
+        }
+
+        // 2) Tentativa com OpenSSL legacy
+        if (!$certificate) {
+            $originalEnv = getenv('OPENSSL_CONF');
+            putenv("OPENSSL_CONF=" . __DIR__ . "/../../legacy_openssl.cnf");
+
+            try {
+                foreach ($passwordCandidates as $pwdTry) {
+                    try {
+                        $certificate = Certificate::readPfx($certContent, $pwdTry);
+                        break;
+                    } catch (Exception $e) {
+                        $lastError = $e;
+                    }
+                }
+            } finally {
+                if ($originalEnv !== false) {
+                    putenv("OPENSSL_CONF=$originalEnv");
+                } else {
+                    putenv("OPENSSL_CONF");
                 }
             }
-            
-        } catch (Exception $e) {
-            throw new Exception("Erro ao ler certificado: Senha incorreta ou arquivo inválido ($certFilename).");
+        }
+
+        if (!$certificate) {
+            $detail = $lastError ? $lastError->getMessage() : 'falha desconhecida';
+            throw new Exception(
+                "Erro ao ler certificado ($certFilename): senha inválida, arquivo inválido ou criptografia legada incompatível. Detalhe técnico: $detail"
+            );
         }
         
         $this->tools = new Tools(json_encode($configJson), $certificate);
