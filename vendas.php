@@ -113,7 +113,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa_simples') {
             // Se o id_usuario for 0 ou null, pode falhar.
         }
         
-        $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NULL WHERE id = ? AND status = 'ABERTO'";
+        $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NOW() WHERE id = ? AND status = 'ABERTO'";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$id_caixa]);
         

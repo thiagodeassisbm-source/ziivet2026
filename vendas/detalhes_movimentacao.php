@@ -84,8 +84,8 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'fechar_caixa') {
             throw new Exception('Este caixa não está aberto.');
         }
         
-        // Atualizar status para FECHADO
-        $sql = "UPDATE caixas SET status = 'FECHADO' WHERE id = ?";
+        // Atualizar status para FECHADO registrando data/hora de fechamento
+        $sql = "UPDATE caixas SET status = 'FECHADO', data_fechamento = NOW() WHERE id = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$id_caixa]);
         
@@ -241,6 +241,25 @@ try {
     if (!$caixa) {
         die("<script>alert('Caixa não encontrado!'); window.location.href='movimentacao_caixa.php';</script>");
     }
+
+    $formatarDataHoraExibicao = static function ($data, $hora = null): string {
+        $dataStr = trim((string)$data);
+        $horaStr = trim((string)$hora);
+
+        if ($dataStr === '' || $dataStr === '0000-00-00' || $dataStr === '0000-00-00 00:00:00') {
+            return '---';
+        }
+
+        if ($horaStr !== '' && !str_contains($dataStr, ':')) {
+            $dataStr .= ' ' . $horaStr;
+        }
+
+        $ts = strtotime($dataStr);
+        if ($ts === false || $ts <= 0) {
+            return '---';
+        }
+        return date('d/m/Y H:i', $ts);
+    };
 
     $inicio = $caixa['data_abertura'] . ' ' . $caixa['hora_abertura'];
     $fim = !empty($caixa['data_fechamento']) ? $caixa['data_fechamento'] : date('Y-m-d H:i:s');
@@ -723,12 +742,12 @@ $hora_atual = date('H:i');
             </div>
             <div class="info-block">
                 <label>Abertura</label>
-                <span><?= date('d/m/Y H:i', strtotime($inicio)) ?></span>
+                <span><?= $formatarDataHoraExibicao($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '') ?></span>
             </div>
             <?php if($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
             <div class="info-block">
                 <label>Fechamento</label>
-                <span><?= date('d/m/Y H:i', strtotime($caixa['data_fechamento'])) ?></span>
+                <span><?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?></span>
             </div>
             <?php endif; ?>
             <div class="info-block">
@@ -1148,12 +1167,12 @@ $hora_atual = date('H:i');
                     document.getElementById('log_content').innerHTML = `
                         <div style="display:flex; flex-direction:column; gap:8px;">
                             <div style="padding:8px; background:#e9f7ef; border-left:3px solid #28a745; border-radius:4px;">
-                                <strong style="color:#28a745;">ABERTURA</strong> - <?= date('d/m/Y H:i', strtotime($caixa['data_abertura'] . ' ' . $caixa['hora_abertura'])) ?><br>
+                                <strong style="color:#28a745;">ABERTURA</strong> - <?= $formatarDataHoraExibicao($caixa['data_abertura'] ?? '', $caixa['hora_abertura'] ?? '') ?><br>
                                 <small>Caixa aberto por <?= htmlspecialchars($caixa['nome_usuario'] ?? 'Operador') ?> com fundo de R$ <?= number_format($caixa['valor_inicial'], 2, ',', '.') ?></small>
                             </div>
                             <?php if ($caixa['status'] == 'FECHADO' || $caixa['status'] == 'ENCERRADO'): ?>
                             <div style="padding:8px; background:#fbeaea; border-left:3px solid #dc3545; border-radius:4px;">
-                                <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= date('d/m/Y H:i', strtotime($caixa['data_fechamento'])) ?><br>
+                                <strong style="color:#dc3545;">FECHAMENTO</strong> - <?= $formatarDataHoraExibicao($caixa['data_fechamento'] ?? '') ?><br>
                                 <small>Caixa encerrado</small>
                             </div>
                             <?php endif; ?>

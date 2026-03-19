@@ -185,6 +185,25 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $movimentos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$formatarDataHoraLista = static function ($data, $hora = null): string {
+    $dataStr = trim((string)$data);
+    $horaStr = trim((string)$hora);
+
+    if ($dataStr === '' || $dataStr === '0000-00-00' || $dataStr === '0000-00-00 00:00:00') {
+        return '<span style="color: #999;">---</span>';
+    }
+
+    if ($horaStr !== '' && !str_contains($dataStr, ':')) {
+        $dataStr .= ' ' . $horaStr;
+    }
+
+    $ts = strtotime($dataStr);
+    if ($ts === false || $ts <= 0) {
+        return '<span style="color: #999;">---</span>';
+    }
+    return date('d/m/Y H:i', $ts);
+};
+
 $lista_usuarios = $pdo->prepare("SELECT id, nome FROM usuarios WHERE id_admin = ? ORDER BY nome ASC");
 $lista_usuarios->execute([$id_admin]);
 $lista_usuarios = $lista_usuarios->fetchAll(PDO::FETCH_ASSOC);
@@ -765,8 +784,8 @@ $titulo_pagina = "Movimentação de Caixas";
                             <?php foreach($movimentos as $mov): ?>
                             <tr>
                                 <td><span class="caixa-code">#<?= $mov['id'] ?></span></td>
-                                <td><?= date('d/m/Y H:i', strtotime($mov['data_abertura'].' '.$mov['hora_abertura'])) ?></td>
-                                <td><?= $mov['data_fechamento'] ? date('d/m/Y H:i', strtotime($mov['data_fechamento'])) : '<span style="color: #999;">---</span>' ?></td>
+                                <td><?= $formatarDataHoraLista($mov['data_abertura'] ?? '', $mov['hora_abertura'] ?? '') ?></td>
+                                <td><?= $formatarDataHoraLista($mov['data_fechamento'] ?? '', $mov['hora_fechamento'] ?? '') ?></td>
                                 <td><?= htmlspecialchars($mov['nome_usuario']) ?></td>
                                 <td style="color: var(--verde); font-weight: 700;">
                                     R$ <?= number_format($mov['valor_fechamento'] ?? $mov['valor_inicial'], 2, ',', '.') ?>
