@@ -450,6 +450,18 @@ $titulo_pagina = "Dashboard Financeiro";
             overflow-y: auto;
         }
 
+        /* Espaçamento interno padrão dos blocos de informação */
+        .info-box {
+            padding: 15px 20px;
+            border-radius: 6px;
+            border-left: 4px solid #17a2b8;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+
         /* LISTA DE ITENS */
         .item-list {
             list-style: none;
