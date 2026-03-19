@@ -44,6 +44,8 @@ $contas_pagar_30 = [];
 $contas_receber_30 = [];
 $ultimos_lancamentos_financeiros = [];
 
+$debug_fin = !empty($_GET['debug_fin']) && (string)$_GET['debug_fin'] !== '0';
+
 try {
     // ===== CARDS PRINCIPAIS =====
     
@@ -138,7 +140,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
     ");
     $stmtReceitaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
     $receita_mes = (float)$stmtReceitaMes->fetchColumn();
@@ -149,7 +151,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PAGO'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
     ");
     $stmtDespesaMes->execute([$id_admin, $inicio_mes, $fim_mes]);
     $despesas_mes = (float)$stmtDespesaMes->fetchColumn();
@@ -165,7 +167,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
     ");
     $stmtReceber30->execute([$id_admin, $hoje, $data_limite_30]);
     $receber_pendente_30 = (float)$stmtReceber30->fetchColumn();
@@ -176,7 +178,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
     ");
     $stmtPagar30->execute([$id_admin, $hoje, $data_limite_30]);
     $pagar_pendente_30 = (float)$stmtPagar30->fetchColumn();
@@ -204,7 +206,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'DESPESA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
         ORDER BY c.vencimento ASC
         LIMIT 10
     ");
@@ -231,7 +233,7 @@ try {
         WHERE c.id_admin = ?
           AND UPPER(TRIM(c.natureza)) = 'RECEITA'
           AND UPPER(TRIM(c.status_baixa)) = 'PENDENTE'
-          AND DATE(c.vencimento) BETWEEN ? AND ?
+          AND c.vencimento BETWEEN ? AND ?
         ORDER BY c.vencimento ASC
         LIMIT 10
     ");
@@ -263,6 +265,75 @@ try {
 }
 
 $titulo_pagina = "Dashboard Financeiro";
+
+if ($debug_fin) {
+    try {
+        $inicioMesDb = $inicio_mes;
+        $fimMesDb = $fim_mes;
+        $dbg = [];
+
+        $stmtDbg = $pdo->prepare("
+            SELECT 
+                SUM(COALESCE(valor_parcela, valor_total)) as soma,
+                COUNT(*) as qtd,
+                MIN(vencimento) as min_venc,
+                MAX(vencimento) as max_venc
+            FROM contas
+            WHERE id_admin = ?
+              AND UPPER(TRIM(natureza)) = ?
+              AND UPPER(TRIM(status_baixa)) = ?
+              AND vencimento BETWEEN ? AND ?
+        ");
+
+        foreach ([['RECEITA','PAGO'], ['DESPESA','PAGO'], ['RECEITA','PENDENTE'], ['DESPESA','PENDENTE']] as $pair) {
+            $stmtDbg->execute([$id_admin, $pair[0], $pair[1], $inicioMesDb, $fimMesDb]);
+            $row = $stmtDbg->fetch(PDO::FETCH_ASSOC);
+            $key = $pair[0] . '_' . $pair[1] . '_mes';
+            $dbg[$key] = [
+                'qtd' => (int)($row['qtd'] ?? 0),
+                'soma' => (float)($row['soma'] ?? 0),
+                'min_venc' => (string)($row['min_venc'] ?? ''),
+                'max_venc' => (string)($row['max_venc'] ?? ''),
+            ];
+        }
+
+        // próximos 30 dias
+        $stmtDbg30 = $pdo->prepare("
+            SELECT 
+                SUM(COALESCE(valor_parcela, valor_total)) as soma,
+                COUNT(*) as qtd,
+                MIN(vencimento) as min_venc,
+                MAX(vencimento) as max_venc
+            FROM contas
+            WHERE id_admin = ?
+              AND UPPER(TRIM(natureza)) = ?
+              AND UPPER(TRIM(status_baixa)) = ?
+              AND vencimento BETWEEN ? AND ?
+        ");
+
+        foreach ([['RECEITA','PENDENTE'], ['DESPESA','PENDENTE']] as $pair) {
+            $stmtDbg30->execute([$id_admin, $pair[0], $pair[1], $hoje, $data_limite_30]);
+            $row = $stmtDbg30->fetch(PDO::FETCH_ASSOC);
+            $key = $pair[0] . '_' . $pair[1] . '_30';
+            $dbg[$key] = [
+                'qtd' => (int)($row['qtd'] ?? 0),
+                'soma' => (float)($row['soma'] ?? 0),
+                'min_venc' => (string)($row['min_venc'] ?? ''),
+                'max_venc' => (string)($row['max_venc'] ?? ''),
+            ];
+        }
+
+        echo "<div style='position:fixed;top:10px;left:10px;z-index:999999;background:#0b1020;color:#cfe6ff;padding:12px 14px;border-radius:10px;max-width:520px;box-shadow:0 10px 30px rgba(0,0,0,0.35);font-family:monospace;font-size:12px;white-space:pre-wrap;'>";
+        echo "DEBUG_FINANCEIRO (dashboard_principal)\n";
+        echo "id_admin={$id_admin}\n";
+        echo "periodo_mes={$inicio_mes}..{$fim_mes}\n";
+        echo "periodo_30={$hoje}..{$data_limite_30}\n\n";
+        echo htmlspecialchars(print_r($dbg, true));
+        echo "</div>";
+    } catch (Throwable $t) {
+        // não quebrar a página
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
