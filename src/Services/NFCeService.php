@@ -305,15 +305,35 @@ class NFCeService
         // 2) Tentativa com OpenSSL legacy
         if (!$certificate) {
             $originalEnv = getenv('OPENSSL_CONF');
-            putenv("OPENSSL_CONF=" . __DIR__ . "/../../legacy_openssl.cnf");
+            $originalModulesEnv = getenv('OPENSSL_MODULES');
+            $legacyConf = realpath(__DIR__ . "/../../legacy_openssl.cnf");
+            if (!$legacyConf) {
+                $legacyConf = __DIR__ . "/../../legacy_openssl.cnf";
+            }
+
+            // Em hospedagens compartilhadas, o OpenSSL 3 pode exigir OPENSSL_MODULES apontando
+            // para a pasta de providers (legacy/default). Tentamos caminhos comuns.
+            $moduleCandidates = array_values(array_unique(array_filter([
+                $originalModulesEnv !== false ? (string)$originalModulesEnv : '',
+                '/opt/alt/php83/usr/lib64/ossl-modules',
+                '/opt/alt/php82/usr/lib64/ossl-modules',
+                '/opt/alt/php81/usr/lib64/ossl-modules',
+                '/usr/lib64/ossl-modules',
+                '/usr/lib/ossl-modules',
+            ], static fn($v) => $v !== '')));
 
             try {
-                foreach ($passwordCandidates as $pwdTry) {
-                    try {
-                        $certificate = Certificate::readPfx($certContent, $pwdTry);
-                        break;
-                    } catch (Exception $e) {
-                        $lastError = $e;
+                putenv("OPENSSL_CONF={$legacyConf}");
+
+                foreach ($moduleCandidates as $modulesPath) {
+                    putenv("OPENSSL_MODULES={$modulesPath}");
+                    foreach ($passwordCandidates as $pwdTry) {
+                        try {
+                            $certificate = Certificate::readPfx($certContent, $pwdTry);
+                            break 2;
+                        } catch (Exception $e) {
+                            $lastError = $e;
+                        }
                     }
                 }
             } finally {
@@ -321,6 +341,12 @@ class NFCeService
                     putenv("OPENSSL_CONF=$originalEnv");
                 } else {
                     putenv("OPENSSL_CONF");
+                }
+
+                if ($originalModulesEnv !== false) {
+                    putenv("OPENSSL_MODULES=$originalModulesEnv");
+                } else {
+                    putenv("OPENSSL_MODULES");
                 }
             }
         }
